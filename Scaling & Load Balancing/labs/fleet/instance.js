@@ -257,11 +257,22 @@ const server = http.createServer(async (req, res) => {
     flapPeriodMs = Number(url.searchParams.get('flapMs') || 3000);
 
     if (next === 'dead') {
-      // Genuinely stop listening, so connections are refused rather than
-      // answered with a polite error. A "dead" instance that still replies is
-      // not dead, and the detection times would be a fiction.
+      // Genuinely stop, so connections are refused rather than answered with a
+      // polite error. A "dead" instance that still replies is not dead, and the
+      // detection times would be a fiction.
+      //
+      // Both calls are needed, and the second one is easy to miss. `close()`
+      // only stops accepting NEW connections - every established keep-alive
+      // socket keeps working. The first version of this lab called just
+      // `close()`, and the health checker went on getting healthy replies over
+      // the connection it had already opened, so a "dead" instance was never
+      // ejected. That is a real production failure mode too: a process that has
+      // stopped accepting work still looks fine to anything already connected
+      // to it.
+      json(res, 200, { ok: true, id: ID, state, note: 'listener closed and existing connections dropped' });
       server.close();
-      return json(res, 200, { ok: true, id: ID, state, note: 'listener closed' });
+      if (typeof server.closeAllConnections === 'function') server.closeAllConnections();
+      return;
     }
     return json(res, 200, { ok: true, id: ID, state, extraLatencyMs });
   }
@@ -389,6 +400,26 @@ process.on('disconnect', () => process.exit(0));
 // layer because there is no signal that means it. This is what the Failure tab
 // uses to show the difference between a drain and a kill.
 process.on('message', async (m) => {
+  // Revival has to arrive over IPC, not HTTP.
+  //
+  // An instance that is `dead` has closed its listener and one that is `hung`
+  // never answers, so neither can receive an HTTP request telling it to come
+  // back - the first version of this lab tried exactly that and instances could
+  // be broken but never fixed. The supervisor holds a channel to the process
+  // itself, which is the only path that still works once the socket does not.
+  //
+  // This is not just a lab detail: it is why orchestrators talk to a kubelet or
+  // an agent on the host rather than to the application. Your control plane
+  // cannot share a failure domain with the thing it is meant to rescue.
+  if (m && m.type === 'revive') {
+    state = 'healthy';
+    extraLatencyMs = 0;
+    warmingUntil = Date.now() + Number(m.warmMs || 4000);
+    if (!server.listening) server.listen(PORT, '0.0.0.0');
+    if (process.send) process.send({ revived: true, id: ID, warmingForMs: m.warmMs || 4000 });
+    return;
+  }
+
   if (m && m.type === 'drain') {
     server.close();
     if (typeof server.closeIdleConnections === 'function') server.closeIdleConnections();

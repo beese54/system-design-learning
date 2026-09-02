@@ -164,19 +164,22 @@ export async function inject(id, state, opts = {}) {
   }
 }
 
+// Revive over IPC rather than HTTP. A `dead` instance has closed its listener
+// and a `hung` one never answers, so an HTTP request cannot reach either - the
+// control path must not share a failure domain with the thing it is fixing.
 export async function revive(id, warmMs = 4000) {
   const r = fleet.get(id);
   if (!r) return { ok: false, error: 'Unknown instance: ' + id };
-  try {
-    const res = await fetch(urlOf(id) + '/revive?warmMs=' + warmMs, {
-      method: 'POST',
-      signal: AbortSignal.timeout(3000)
-    });
-    r.state = 'healthy';
-    return await res.json();
-  } catch (err) {
-    return { ok: false, error: String(err.message || err) };
-  }
+
+  r.child.send({ type: 'revive', warmMs });
+  r.state = 'healthy';
+
+  const ready = await waitReady(r.port, Math.max(8000, warmMs + 4000));
+  r.ready = ready;
+
+  return ready
+    ? { ok: true, id, revived: true, warmingForMs: warmMs }
+    : { ok: false, id, error: `Instance ${id} did not come back within ${warmMs + 4000}ms.` };
 }
 
 // Resize the fleet to exactly n instances of the given shape. Used by every
