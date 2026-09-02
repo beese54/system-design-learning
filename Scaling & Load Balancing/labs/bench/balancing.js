@@ -115,9 +115,15 @@ export async function zombie({ instances = 4, durationMs = 3000 } = {}) {
   const n = Math.max(3, Math.min(instances, lab.budget.fleet));
   await ensureFleet(n, 1);
 
-  // Stop the checker so the policy has to cope unaided, and turn off retries so
-  // the damage is visible rather than papered over.
+  // Stop the ACTIVE probe and suspend ejection, so the policy has to cope
+  // unaided. Stopping the probe alone is not enough: passive health still
+  // watches real request outcomes, and three failed requests eject the zombie
+  // in well under a second - which is excellent behaviour and completely hides
+  // the thing this demonstration exists to show. Retries are off too, so the
+  // damage is visible rather than papered over.
   lab.lb.checker.stop();
+  lab.lb.checker.setEjection(false);
+  lab.lb.setRetry(false);
   const target = sup.list()[1].id;
   await sup.inject(target, 'zombie');
 
@@ -143,6 +149,8 @@ export async function zombie({ instances = 4, durationMs = 3000 } = {}) {
   }
 
   await sup.revive(target, 300);
+  lab.lb.checker.setEjection(true);
+  lab.lb.setRetry(true);
   lab.lb.checker.start();
   lab.lb.setPolicy('round-robin');
 

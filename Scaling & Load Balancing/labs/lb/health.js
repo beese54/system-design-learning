@@ -136,11 +136,22 @@ export function createChecker(opts = {}) {
     }
   }
 
+  // Ejection can be suspended, which sounds like a strange thing to want until
+  // you try to demonstrate what a balancing POLICY does on its own. Health
+  // checking is so effective that a broken backend is gone in about a second and
+  // a half, and the policy never gets the chance to show you how it would have
+  // coped. The zombie demonstration in Tab 4 needs that second and a half to
+  // last, so it turns ejection off and watches least-connections walk straight
+  // into the black hole.
+  let ejectionEnabled = true;
+
   function fail(n, why) {
     n.failures++;
     n.consecutivePass = 0;
     n.consecutiveFail++;
     n.lastError = why;
+
+    if (!ejectionEnabled) return;
 
     if (n.status === 'healthy' && n.consecutiveFail >= cfg.ejectAfter) {
       if (inPanic()) {
@@ -189,6 +200,7 @@ export function createChecker(opts = {}) {
     remove,
     start,
     stop,
+    setEjection: (on) => { ejectionEnabled = !!on; return { ok: true, ejection: ejectionEnabled }; },
     tick,
     observe,
     weight,

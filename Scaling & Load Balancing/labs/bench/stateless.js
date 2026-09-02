@@ -28,18 +28,36 @@ export async function inMemory({ instances = 4, users = 2000 } = {}) {
   const ids = sup.list().map((i) => i.id);
 
   // Simulate the routing rather than the storage: which instance would each
-  // request land on, and is it the one that holds this user's session?
-  let wrong = 0;
-  const home = new Map();
-  let cursor = 0;
-  for (const k of keys(users)) {
-    const first = ids[cursor++ % ids.length];  // round robin, first visit
-    home.set(k, first);
-    const second = ids[cursor++ % ids.length]; // their next request
-    if (second !== home.get(k)) wrong++;
+  // request land on, and is it the one holding this user's session?
+  //
+  // The requests have to be INTERLEAVED to mean anything. A first version walked
+  // one user at a time, taking two consecutive slots from the round-robin
+  // cursor - so the follow-up always landed on the very next instance and the
+  // answer came out at a suspiciously round 100%. Real users do not take turns;
+  // their requests are shuffled together with everybody else's, which is what
+  // makes the instance a follow-up lands on effectively arbitrary.
+  const stream = [];
+  for (const k of keys(users)) { stream.push(k); stream.push(k); }
+  // Deterministic shuffle, so the number is reproducible between runs.
+  let seed = 12345;
+  const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+  for (let i = stream.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [stream[i], stream[j]] = [stream[j], stream[i]];
   }
 
-  const pct = round2((wrong / users) * 100);
+  let wrong = 0;
+  let followUps = 0;
+  const home = new Map();
+  let cursor = 0;
+  for (const k of stream) {
+    const landedOn = ids[cursor++ % ids.length];
+    if (!home.has(k)) { home.set(k, landedOn); continue; }  // first visit creates the session
+    followUps++;
+    if (landedOn !== home.get(k)) wrong++;
+  }
+
+  const pct = round2((wrong / Math.max(followUps, 1)) * 100);
   return {
     instances: n,
     users,
