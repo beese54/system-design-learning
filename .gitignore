@@ -1,0 +1,13 @@
+# Lab dependencies — reinstall with `npm install` in each labs/ folder
+node_modules/
+
+# Runtime / build noise
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local environment overrides
+.env
+.env.local
