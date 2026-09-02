@@ -1,3 +1,8 @@
+# Compose project name, set explicitly, so this course owns its own container
+# and volume regardless of what other course is running. Every course in this
+# series keeps its lab in a folder called `labs`, and Compose would otherwise
+# name the project after that folder and collide them.
+name: storage-lab
 # The only container this course needs: one real Postgres.
 #
 #   docker compose up -d      start it (first run seeds ~1M rows, 30-60s)
