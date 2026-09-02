@@ -1,0 +1,22 @@
+{
+  "title": "System Design",
+  "subtitle": "A hands-on course",
+  "kicker": "Read it · Run it · Build it",
+  "colophon": "A skill counts as learned only when an artifact proves it.",
+  "chapters": [
+    {
+      "dir": "API Design",
+      "title": "API Design",
+      "numeral": "I",
+      "blurb": "What APIs are, why they are designed the way they are, and how REST, GraphQL and gRPC differ once you stop reading about them and start sending bytes.",
+      "lab": "http://localhost:4000"
+    },
+    {
+      "dir": "Data & Storage",
+      "title": "Data & Storage",
+      "numeral": "II",
+      "blurb": "What a read actually costs. Query plans, indexes, transactions and locks, against a real Postgres holding a million rows.",
+      "lab": "http://localhost:4100"
+    }
+  ]
+}
