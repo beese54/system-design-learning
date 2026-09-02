@@ -1,0 +1,196 @@
+/* Scaling & Load Balancing Lab - hand-written, no framework.
+   The token block below is copied verbatim from the Data & Storage lab, which
+   took it from the API Design lab. Three courses in one series; they should
+   feel like one thing. New here: the fleet board, the sweep chart, the health
+   state machine and the outage timeline. */
+:root {
+  --bg:#0d1117; --panel:#161b22; --panel2:#1c2129; --line:#2a313c;
+  --ink:#e6edf3; --dim:#9aa4b2; --faint:#6e7681;
+  --ok:#3fb950; --idx:#58a6ff; --seq:#d29922; --bad:#f85149; --skew:#e535ab;
+  --a:#58a6ff; --b:#e535ab;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+* { box-sizing:border-box; }
+body {
+  margin:0; background:var(--bg); color:var(--ink);
+  font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;
+}
+h1 { font-size:26px; margin:0 0 6px; letter-spacing:-.02em; }
+h2 { font-size:19px; margin:34px 0 12px; }
+h3 { font-size:12px; text-transform:uppercase; letter-spacing:.09em; color:var(--dim); margin:0 0 8px; }
+h4 { margin:0 0 6px; font-size:14px; }
+p  { margin:0 0 12px; }
+code { font-family:var(--mono); font-size:.9em; background:#22272e; padding:1px 5px; border-radius:4px; color:#c9d1d9; }
+.lede { color:var(--dim); max-width:80ch; margin-bottom:20px; }
+.sub { color:var(--faint); text-transform:none; letter-spacing:0; font-weight:400; }
+.hint { color:var(--faint); font-size:13px; }
+.warn { color:var(--seq); }
+
+/* header */
+.top { position:sticky; top:0; z-index:10; background:rgba(13,17,23,.93);
+  backdrop-filter:blur(8px); border-bottom:1px solid var(--line); padding:12px 22px; }
+.brand { font-weight:600; letter-spacing:-.01em; margin-bottom:10px; display:flex; align-items:center; gap:8px; }
+.brand em { color:var(--faint); font-style:normal; font-weight:400; margin-left:4px; font-size:13px; }
+.dot { display:inline-block; width:9px; height:9px; border-radius:50%; background:var(--bad); flex:none;
+  box-shadow:0 0 0 3px rgba(248,81,73,.15); transition:background .3s, box-shadow .3s; }
+.dot.live { background:var(--ok); box-shadow:0 0 0 3px rgba(63,185,80,.15); }
+nav { display:flex; gap:6px; flex-wrap:wrap; }
+nav button { background:transparent; border:1px solid transparent; color:var(--dim); padding:6px 12px;
+  border-radius:7px; cursor:pointer; font-size:13.5px; }
+nav button:hover { color:var(--ink); background:var(--panel); }
+nav button.on { color:var(--ink); background:var(--panel); border-color:var(--line); }
+
+/* tabs */
+.tab { display:none; padding:26px 22px 80px; max-width:1220px; }
+.tab.on { display:block; }
+
+.row { display:flex; align-items:center; gap:12px; margin:16px 0; flex-wrap:wrap; }
+.split { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+@media (max-width:980px){ .split{ grid-template-columns:1fr; } }
+.pane { background:var(--panel); border:1px solid var(--line); border-radius:11px; padding:13px 15px; min-width:0; }
+.pane.full { margin-top:14px; }
+.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px; margin-top:16px; }
+.card { background:var(--panel); border:1px solid var(--line); border-radius:11px; padding:13px 15px; }
+.card p { margin:0; font-size:13px; color:var(--dim); }
+
+/* buttons */
+button.go, button.alt {
+  background:var(--ok); color:#0b1f12; border:0; padding:8px 15px; border-radius:8px;
+  cursor:pointer; font-weight:600; font-size:13.5px;
+}
+button.alt { background:var(--panel2); color:var(--ink); border:1px solid var(--line); font-weight:500; }
+button.go:disabled, button.alt:disabled { opacity:.4; cursor:not-allowed; }
+button.go:hover:not(:disabled) { filter:brightness(1.1); }
+button.alt:hover:not(:disabled) { border-color:var(--dim); }
+select, input[type=text], input[type=number] {
+  background:var(--panel2); color:var(--ink); border:1px solid var(--line);
+  border-radius:7px; padding:7px 10px; font-size:13.5px; font-family:inherit;
+}
+input[type=range] { accent-color:var(--idx); }
+textarea {
+  width:100%; min-height:150px; background:var(--panel2); color:#c9d1d9; border:1px solid var(--line);
+  border-radius:8px; padding:11px; font-family:var(--mono); font-size:12.5px; line-height:1.5; resize:vertical;
+}
+
+/* code + plan output */
+pre.out {
+  font-family:var(--mono); font-size:12.5px; line-height:1.5; color:#c9d1d9;
+  white-space:pre; overflow:auto; margin:0; max-height:420px;
+}
+pre.out.wrap { white-space:pre-wrap; word-break:break-word; }
+.plan-line { display:block; }
+
+/* metrics */
+.metrics { display:flex; gap:10px; flex-wrap:wrap; margin:14px 0; }
+.metric { background:var(--panel); border:1px solid var(--line); border-radius:10px;
+  padding:10px 14px; min-width:104px; }
+.metric b { display:block; font-size:21px; font-weight:600; letter-spacing:-.02em; }
+.metric span { font-size:11px; color:var(--faint); text-transform:uppercase; letter-spacing:.07em; }
+.metric.good b { color:var(--ok); }
+.metric.bad b  { color:var(--bad); }
+.metric.warn b { color:var(--seq); }
+.metric.idx b  { color:var(--idx); }
+
+/* tables */
+table.grid { width:100%; border-collapse:collapse; font-size:13px; }
+table.grid th { text-align:left; color:var(--faint); font-weight:500; font-size:11px;
+  text-transform:uppercase; letter-spacing:.07em; padding:7px 9px; border-bottom:1px solid var(--line); }
+table.grid td { padding:7px 9px; border-bottom:1px solid #20262f; vertical-align:top; }
+table.grid tr:last-child td { border-bottom:0; }
+table.grid td.mono, table.grid th.mono { font-family:var(--mono); font-size:12px; }
+table.mini { width:100%; border-collapse:collapse; font-size:13px; margin-top:8px; }
+table.mini th { text-align:left; color:var(--faint); font-weight:500; width:38%; padding:4px 0; vertical-align:top; }
+table.mini td { padding:4px 0; }
+
+/* pills */
+.pill { display:inline-block; padding:2px 8px; border-radius:20px; font-size:11px;
+  font-family:var(--mono); border:1px solid var(--line); color:var(--dim); }
+.pill.seq  { color:var(--seq); border-color:rgba(210,153,34,.4);  background:rgba(210,153,34,.08); }
+.pill.idx  { color:var(--idx); border-color:rgba(88,166,255,.4);  background:rgba(88,166,255,.08); }
+.pill.ok   { color:var(--ok);  border-color:rgba(63,185,80,.4);   background:rgba(63,185,80,.08); }
+.pill.bad  { color:var(--bad); border-color:rgba(248,81,73,.4);   background:rgba(248,81,73,.08); }
+
+
+/* verdict */
+.verdict { border-radius:11px; padding:14px 16px; margin-top:16px; border:1px solid var(--line); background:var(--panel); }
+.verdict.good { border-color:rgba(63,185,80,.5); background:rgba(63,185,80,.07); }
+.verdict.bad  { border-color:rgba(248,81,73,.5); background:rgba(248,81,73,.07); }
+.verdict h4 { margin:0 0 5px; }
+.verdict p { margin:0; font-size:13px; color:var(--dim); }
+.verdict .code { font-family:var(--mono); font-size:12px; color:var(--seq); margin-top:6px; }
+
+
+/* bars */
+.bars { display:grid; gap:9px; margin-top:12px; }
+.bar-row { display:grid; grid-template-columns:200px 1fr 130px; gap:11px; align-items:center; font-size:13px; }
+@media (max-width:760px){ .bar-row{ grid-template-columns:1fr; gap:3px; } }
+.bar-track { background:var(--panel2); border-radius:5px; height:22px; overflow:hidden; border:1px solid var(--line); }
+.bar-fill { height:100%; border-radius:4px 0 0 4px; transition:width .5s ease; }
+.bar-num { font-family:var(--mono); font-size:12px; color:var(--dim); text-align:right; }
+
+
+/* ---------------------------------------------------------- the fleet board */
+/* One tile per instance, everywhere in the lab, so the fleet always looks the
+   same however you got to it. */
+.fleet { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; margin:14px 0; }
+.node { background:var(--panel); border:1px solid var(--line); border-radius:11px; padding:11px 13px; position:relative; }
+.node b { font-family:var(--mono); font-size:14px; display:block; }
+.node .port { color:var(--faint); font-size:11px; font-family:var(--mono); }
+.node .st { margin-top:7px; font-size:11.5px; }
+.node.healthy  { border-color:rgba(63,185,80,.45); }
+.node.ejected  { border-color:rgba(248,81,73,.5); background:rgba(248,81,73,.06); }
+.node.probing  { border-color:rgba(210,153,34,.5); background:rgba(210,153,34,.06); }
+.node.draining { border-color:rgba(88,166,255,.45); }
+.node .w { position:absolute; top:10px; right:12px; font-size:10px; font-family:var(--mono); color:var(--idx); }
+.node select { width:100%; margin-top:8px; font-size:12px; padding:4px 6px; }
+
+/* ------------------------------------------------------------- sweep charts */
+/* A plain SVG line chart. No library: two axes and a polyline is not worth a
+   dependency, and you can read every pixel of it. */
+.chart { background:var(--panel); border:1px solid var(--line); border-radius:11px; padding:14px; margin-top:14px; }
+.chart svg { width:100%; height:260px; display:block; }
+.chart .axis { stroke:var(--line); stroke-width:1; }
+.chart .grid-l { stroke:#20262f; stroke-width:1; }
+.chart .lbl { fill:var(--faint); font-size:10px; font-family:var(--mono); }
+.chart .ideal { stroke:var(--faint); stroke-width:1.5; stroke-dasharray:4 4; fill:none; }
+.chart .line-a { stroke:var(--ok); stroke-width:2; fill:none; }
+.chart .line-b { stroke:var(--idx); stroke-width:2; fill:none; }
+.chart .dot-a { fill:var(--ok); }
+.chart .dot-b { fill:var(--idx); }
+.legend { display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:var(--dim); margin-top:8px; }
+.legend i { display:inline-block; width:14px; height:3px; border-radius:2px; margin-right:6px; vertical-align:middle; }
+
+/* ---------------------------------------------------------- outage timeline */
+.timeline { display:grid; gap:4px; margin-top:12px; }
+.tl-row { display:grid; grid-template-columns:52px 1fr 92px 74px; gap:10px; align-items:center; font-size:12.5px; }
+.tl-bar { background:var(--panel2); border:1px solid var(--line); border-radius:5px; height:20px; overflow:hidden; position:relative; }
+.tl-fill { height:100%; background:var(--ok); }
+.tl-fill.err { background:var(--bad); }
+.tl-ev { font-family:var(--mono); font-size:11px; color:var(--seq); }
+.tl-num { font-family:var(--mono); font-size:11.5px; color:var(--dim); text-align:right; }
+
+/* ------------------------------------------------------------- event stream */
+.events { font-family:var(--mono); font-size:11.5px; max-height:210px; overflow:auto;
+  background:var(--panel2); border:1px solid var(--line); border-radius:9px; padding:10px 12px; margin-top:12px; }
+.events div { padding:1.5px 0; color:var(--dim); }
+.events .ejected { color:var(--bad); }
+.events .restored { color:var(--ok); }
+.events .probing { color:var(--seq); }
+.events .panic { color:var(--skew); }
+
+/* ------------------------------------------------------- preflight / notices */
+.notice { border-radius:11px; padding:13px 16px; margin:14px 0; border:1px solid var(--line);
+  background:var(--panel); font-size:13.5px; color:var(--dim); }
+.notice.warn { border-color:rgba(210,153,34,.5); background:rgba(210,153,34,.07); }
+.notice.bad  { border-color:rgba(248,81,73,.5);  background:rgba(248,81,73,.07); }
+.notice b { color:var(--ink); }
+.readme { white-space:pre-wrap; font-size:13.5px; color:var(--dim); line-height:1.6; margin-top:12px; }
+
+/* nginx directive mapping */
+.mapfrom { font-family:var(--mono); font-size:12px; color:var(--seq); }
+.mapto   { font-family:var(--mono); font-size:12px; color:var(--idx); }
+
+.busy { opacity:.55; pointer-events:none; }
+.spin { display:inline-block; width:11px; height:11px; border:2px solid var(--faint);
+  border-top-color:var(--ok); border-radius:50%; animation:sp .7s linear infinite; vertical-align:-1px; margin-right:6px; }
+@keyframes sp { to { transform:rotate(360deg); } }

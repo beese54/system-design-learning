@@ -20,6 +20,7 @@ export function createBalancer({
   health = {},
   retryOnFailure = true
 } = {}) {
+  let retry = retryOnFailure;
   const backends = new Map();   // id -> { id, port, inflight, served, failed, ewmaMs }
   const checker = createChecker(health);
   let ring = [];
@@ -56,6 +57,13 @@ export function createBalancer({
     ring = buildRing([...backends.keys()]);
     resetCursor();
   }
+
+  // Retry is a lab control rather than a fixed default, because whether it is on
+  // changes what a user experiences during an outage more than almost anything
+  // else. With it on, one dead instance out of four is invisible. With it off,
+  // a quarter of requests fail until the checker ejects it. The Failure tab runs
+  // both so the difference is the lesson rather than a footnote.
+  function setRetry(on) { retry = !!on; return { ok: true, retry }; }
 
   function setPolicy(name) {
     if (!POLICIES[name]) return { ok: false, error: 'Unknown policy: ' + name };
@@ -117,7 +125,7 @@ export function createBalancer({
         // instance being invisible to users and being visible to a quarter of
         // them. It is only safe because /work is idempotent - retrying a POST
         // that already charged a card is a different lesson entirely.
-        if (failed && retryOnFailure && attempt === 0) {
+        if (failed && retry && attempt === 0) {
           up.resume();
           const alt = eligible().filter((b) => b.id !== backend.id);
           if (alt.length) {
@@ -144,7 +152,7 @@ export function createBalancer({
         backend.failed++;
         checker.observe(backend.id, false);
 
-        if (retryOnFailure && attempt === 0) {
+        if (retry && attempt === 0) {
           const alt = eligible().filter((b) => b.id !== backend.id);
           if (alt.length) {
             stats.retried++;
@@ -204,6 +212,7 @@ export function createBalancer({
   function snapshot() {
     return {
       policy: current,
+      retry,
       port,
       stats: { ...stats, uptimeMs: Date.now() - stats.startedAt },
       backends: [...backends.values()].map((b) => ({
@@ -225,6 +234,7 @@ export function createBalancer({
     server,
     setBackends,
     setPolicy,
+    setRetry,
     snapshot,
     resetStats,
     checker,

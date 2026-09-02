@@ -124,6 +124,10 @@ export function createChecker(opts = {}) {
   function pass(n) {
     n.consecutiveFail = 0;
     n.consecutivePass++;
+    // Clear the stale reason. Without this a node that failed once and then
+    // recovered keeps reporting its old error forever, and the next experiment
+    // on that node reads it as a fresh diagnosis of something else entirely.
+    n.lastError = null;
     if ((n.status === 'ejected' || n.status === 'probing') && n.consecutivePass >= cfg.restoreAfter) {
       n.status = 'healthy';
       n.restoredAt = now();

@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Scaling &amp; Load Balancing Lab</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="brand"><span class="dot" id="live"></span> Scaling &amp; Load Balancing Lab <em id="machine">starting…</em></div>
+  <nav id="tabs">
+    <button data-tab="capacity" class="on">1 · Capacity</button>
+    <button data-tab="vertical">2 · Vertical</button>
+    <button data-tab="horizontal">3 · Horizontal</button>
+    <button data-tab="balancer">4 · Balancer</button>
+    <button data-tab="stateless">5 · Stateless</button>
+    <button data-tab="health">6 · Health</button>
+    <button data-tab="failure">7 · Failure</button>
+    <button data-tab="nginx">8 · The real thing</button>
+  </nav>
+</header>
+
+<!-- ==================== 1. CAPACITY ==================== -->
+<section id="capacity" class="tab on">
+  <h1>Capacity</h1>
+  <p class="lede">
+    Nothing else in this lab is trustworthy until this tab has run. It measures your machine, the
+    work unit, the platform's timer and the load generator's own ceiling — and only then measures a
+    server. <strong>A benchmark that has not calibrated its own instruments is a rumour.</strong>
+  </p>
+
+  <div class="row">
+    <button class="go" id="pfRun">▶ Run preflight</button>
+    <span class="hint">Calibrates the work unit, measures the timer floor, finds the driver's ceiling.</span>
+  </div>
+  <div id="pfOut"></div>
+
+  <h2>Find the knee</h2>
+  <p class="lede">One instance, one worker. Push concurrency up and watch throughput flatten while
+    latency does not.</p>
+  <div class="row">
+    <select id="rampMode">
+      <option value="cpu">cpu — the app tier is the bottleneck</option>
+      <option value="io:query">io:query — a fast indexed read</option>
+      <option value="io:scan">io:scan — an expensive shared query</option>
+    </select>
+    <button class="go" id="rampRun">▶ Ramp concurrency</button>
+  </div>
+  <div id="rampOut"></div>
+
+  <div class="split">
+    <div class="pane">
+      <h3>Coordinated omission</h3>
+      <p class="hint">The same server, measured two ways. Most load tests do the first one and
+        believe the answer.</p>
+      <button class="alt" id="coRun">▶ Closed loop vs open loop</button>
+      <div id="coOut"></div>
+    </div>
+    <div class="pane">
+      <h3>The noise floor</h3>
+      <p class="hint">Four identical runs. Whatever they disagree by is the smallest difference
+        worth believing anywhere in this lab.</p>
+      <button class="alt" id="noiseRun">▶ Measure the noise</button>
+      <div id="noiseOut"></div>
+    </div>
+  </div>
+
+  <div class="cards">
+    <div class="card"><h4>Little's Law</h4><p>Throughput = concurrency ÷ latency. Past the knee
+      throughput is fixed, so extra concurrency can only turn into latency. That is the whole of it.</p></div>
+    <div class="card"><h4>Why the ceiling matters</h4><p>A load generator has a capacity too. Any run
+      above 70% of it is measuring the instrument, and the lab marks those rather than reporting them.</p></div>
+    <div class="card"><h4>Why interleaved</h4><p>Sweeps never run in ascending order. A laptop
+      throttles under sustained load, and an ascending sweep turns that cooling curve into something
+      that reads exactly like diminishing returns.</p></div>
+  </div>
+</section>
+
+<!-- ==================== 2. VERTICAL ==================== -->
+<section id="vertical" class="tab">
+  <h1>Vertical scaling</h1>
+  <p class="lede">
+    One instance, more workers inside it. <code>cluster</code> forks N processes sharing one
+    listening socket — this is what "buy a bigger box" looks like from the inside. Watch where the
+    return on each extra worker disappears, and note that <strong>the cores on this machine are not
+    all the same speed</strong>.
+  </p>
+
+  <div class="row">
+    <select id="vMode">
+      <option value="cpu">cpu — where worker count actually matters</option>
+      <option value="io:query">io:query — where it mostly does not</option>
+    </select>
+    <button class="go" id="vRun">▶ Sweep workers</button>
+    <span class="hint" id="vSweep"></span>
+  </div>
+  <div id="vOut"></div>
+
+  <div class="cards">
+    <div class="card"><h4>The four ceilings</h4><p>Cores, the event loop, memory, and the fact that
+      one box can still die. Vertical scaling runs out of the first three and does nothing at all
+      about the fourth.</p></div>
+    <div class="card"><h4>Not all cores are equal</h4><p>Modern laptop chips mix performance and
+      efficiency cores. Node cannot tell them apart, so the lab does not claim to — it charts
+      per-worker throughput and lets the spread speak.</p></div>
+    <div class="card"><h4>What it does not fix</h4><p>Every worker is a separate process with its own
+      memory. Anything you kept in a module-level variable is now wrong in N different ways.</p></div>
+  </div>
+</section>
+
+<!-- ==================== 3. HORIZONTAL ==================== -->
+<section id="horizontal" class="tab">
+  <h1>Horizontal scaling</h1>
+  <p class="lede">
+    More instances, one worker each, behind the balancer. Same total parallelism as the vertical
+    sweep at every point, so the two curves are directly comparable.
+  </p>
+
+  <div class="row">
+    <select id="hMode">
+      <option value="cpu">cpu</option>
+      <option value="io:query">io:query</option>
+      <option value="io:scan">io:scan</option>
+    </select>
+    <button class="go" id="hRun">▶ Sweep instances</button>
+    <span class="hint" id="hSweep"></span>
+  </div>
+  <div id="hOut"></div>
+
+  <div class="pane full">
+    <h3>The control experiment</h3>
+    <p class="hint">
+      The one measurement that decides what this chapter is allowed to claim. Same total request
+      concurrency; the only change is how many processes serve it. If N instances and 1 instance land
+      in the same place, then instance count was never the causal variable — concurrency was.
+    </p>
+    <div class="row"><button class="go" id="ctlRun">▶ N instances vs 1 instance, same concurrency</button></div>
+    <div id="ctlOut"></div>
+  </div>
+</section>
+
+<!-- ==================== 4. BALANCER ==================== -->
+<section id="balancer" class="tab">
+  <h1>The balancer</h1>
+  <p class="lede">
+    Five policies, each a few lines of readable code. On a healthy fleet of identical instances they
+    are indistinguishable — <strong>the choice only matters once the backends stop being
+    interchangeable</strong>, which is why this tab injects a fault by default.
+  </p>
+
+  <div class="row">
+    <select id="bDegrade">
+      <option value="slow">one instance slow (300 ms)</option>
+      <option value="none">all healthy — the boring control</option>
+    </select>
+    <select id="bMode">
+      <option value="cpu">cpu</option>
+      <option value="io:query">io:query</option>
+    </select>
+    <button class="go" id="bRun">▶ Compare all policies</button>
+  </div>
+  <div id="bOut"></div>
+
+  <div class="pane full">
+    <h3>The zombie</h3>
+    <p class="hint">
+      An instance that fails <em>instantly</em> has the lowest latency and the fewest in-flight
+      requests in the pool — so the cleverer the policy, the more traffic it funnels into the black
+      hole. Health checking normally rescues this in about a second, so it is switched off here to
+      show what the policy does unaided.
+    </p>
+    <div class="row"><button class="alt" id="zRun">▶ Run the zombie</button></div>
+    <div id="zOut"></div>
+  </div>
+
+  <div class="pane full">
+    <h3>The policies</h3>
+    <table class="grid" id="polTable"></table>
+  </div>
+</section>
+
+<!-- ==================== 5. STATELESS ==================== -->
+<section id="stateless" class="tab">
+  <h1>The statelessness tax</h1>
+  <p class="lede">
+    Horizontal scaling only works once state leaves the process. Three ways to keep a user's session
+    across a fleet, each with a measured price rather than an opinion.
+  </p>
+
+  <div class="row">
+    <button class="go" id="s1">▶ 1 · Sessions in memory</button>
+    <button class="alt" id="s2">▶ 2 · Sticky routing</button>
+    <button class="alt" id="s3">▶ 3 · Shared in Postgres</button>
+  </div>
+  <div id="sOut"></div>
+
+  <div class="cards">
+    <div class="card"><h4>It gets worse as you grow</h4><p>With sessions in process memory the
+      wrong-instance rate is (n−1)/n. In-process state does not merely fail to scale — it punishes
+      scaling.</p></div>
+    <div class="card"><h4>Affinity is not balance</h4><p>Stickiness fixes correctness and creates hot
+      instances. No load-aware policy can help while the key must go where it must go.</p></div>
+    <div class="card"><h4>Consistent hashing</h4><p>Not better balance — far less disruption. Losing
+      one instance of four moves about a quarter of your users instead of nearly all of them.</p></div>
+  </div>
+</section>
+
+<!-- ==================== 6. HEALTH ==================== -->
+<section id="health" class="tab">
+  <h1>Health checks</h1>
+  <p class="lede">
+    Liveness asks whether the process is alive. Readiness asks whether it should get traffic. A deep
+    check asks whether its dependencies work. <strong>Confusing the three is how a dependency blip
+    becomes a total outage.</strong>
+  </p>
+
+  <div class="row">
+    <span class="hint">Checker probes:</span>
+    <select id="hPath">
+      <option value="/readyz">/readyz — readiness (the right default)</option>
+      <option value="/healthz">/healthz — liveness only</option>
+      <option value="/deepz">/deepz — readiness plus the database</option>
+    </select>
+    <button class="alt" id="hFleet4">Fleet of 4</button>
+    <span class="hint" id="hPathNote"></span>
+  </div>
+
+  <div class="fleet" id="hFleet"></div>
+  <div class="events" id="hEvents"></div>
+
+  <div class="split">
+    <div class="pane">
+      <h3>How fast is it detected?</h3>
+      <p class="hint">The same outage, detected at wildly different speeds depending on how it fails.</p>
+      <div class="row">
+        <select id="dFault">
+          <option value="dead">dead — refuses connections</option>
+          <option value="hung">hung — accepts and never answers</option>
+          <option value="error">error — 500s, health still passes</option>
+          <option value="unready">unready — readiness fails</option>
+        </select>
+        <button class="alt" id="dRun">▶ Time it</button>
+      </div>
+      <div id="dOut"></div>
+    </div>
+    <div class="pane">
+      <h3>The cascade</h3>
+      <p class="hint">Point readiness at the shared database, break the database, and watch a fleet in
+        which nothing is wrong eject itself.</p>
+      <div class="row"><button class="alt" id="cascRun">▶ Run the cascade</button></div>
+      <div id="cascOut"></div>
+    </div>
+  </div>
+
+  <div class="pane full">
+    <h3>The faults, and what each one is for</h3>
+    <table class="grid" id="faultTable"></table>
+  </div>
+</section>
+
+<!-- ==================== 7. FAILURE ==================== -->
+<section id="failure" class="tab">
+  <h1>Failure, as a user sees it</h1>
+  <p class="lede">
+    Constant arrival rate throughout, so this is what someone using the service would have
+    experienced — not what a patient benchmark would have reported. An instance breaks after the
+    first window and is revived after the third.
+  </p>
+
+  <div class="row">
+    <select id="fFault">
+      <option value="dead">dead</option>
+      <option value="hung">hung</option>
+      <option value="error">error</option>
+      <option value="zombie">zombie</option>
+    </select>
+    <select id="fRate">
+      <option value="60">60 rps</option>
+      <option value="120" selected>120 rps</option>
+      <option value="240">240 rps</option>
+    </select>
+    <select id="fRetry">
+      <option value="off">retry off — see the raw damage</option>
+      <option value="on">retry on — see what it hides</option>
+    </select>
+    <button class="go" id="fRun">▶ Break it under load</button>
+  </div>
+  <div id="fOut"></div>
+
+  <div class="cards">
+    <div class="card"><h4>The error budget</h4><p>Errors do not stop the moment an instance is
+      ejected. The window between breaking and being removed is set by your detection parameters,
+      not by the fault.</p></div>
+    <div class="card"><h4>Recovery is the forgotten half</h4><p>A revived instance comes back cold.
+      Give it a full share immediately and it fails again — you have built an oscillator.</p></div>
+    <div class="card"><h4>Drain beats kill</h4><p>Stop receiving traffic before you stop accepting
+      it. On Windows there is no SIGTERM contract, so the drain has to be asked for at the
+      application layer.</p></div>
+  </div>
+</section>
+
+<!-- ==================== 8. THE REAL THING ==================== -->
+<section id="nginx" class="tab">
+  <h1>The real thing</h1>
+  <p class="lede">
+    nginx doing the same job, so you can check your own balancer against twelve lines of someone
+    else's C. <strong>This tab refuses to compare throughput</strong>, and the refusal is the
+    interesting part: nginx runs in a container and reaches the fleet across a virtual network hop
+    that the host-native balancer never pays.
+  </p>
+
+  <div id="ngStatus"></div>
+
+  <div class="row">
+    <button class="alt" id="ngHop">▶ Measure the container hop</button>
+    <button class="alt" id="ngBeh">▶ Compare behaviour under a fault</button>
+  </div>
+  <div id="ngOut"></div>
+
+  <div class="pane full">
+    <h3>Every directive, and the line of this lab that does the same job</h3>
+    <table class="grid" id="mapTable"></table>
+  </div>
+</section>
+
+<script src="/app.js"></script>
+</body>
+</html>
