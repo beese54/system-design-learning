@@ -1,0 +1,59 @@
+# The only container this course needs: one real Postgres.
+#
+#   docker compose up -d      start it (first run seeds ~1M rows, 30-60s)
+#   docker compose logs -f    watch the seed finish
+#   docker compose down       stop it, keep the data
+#   docker compose down -v    stop it and delete the volume (re-seeds next up)
+#
+# The lab app itself runs on your host with `npm start`, exactly like the API
+# Design labs. Only the database is containerised, because only the database
+# is genuinely annoying to install.
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: storage-lab-db
+    environment:
+      POSTGRES_USER: lab
+      POSTGRES_PASSWORD: lab
+      POSTGRES_DB: catalogue
+      # Deterministic plans across machines: without this, your EXPLAIN output
+      # would differ from the lessons purely because of locale collation.
+      POSTGRES_INITDB_ARGS: "--locale=C --encoding=UTF8"
+    ports:
+      # 55432, not 5432, so this never fights a Postgres you already run.
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - lab-data:/var/lib/postgresql/data
+      # Files here run once, in filename order, on an empty data directory.
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    command:
+      # Small, explicit knobs so the lessons can talk about real numbers.
+      # log_min_duration_statement=0 logs every query with its duration - noisy
+      # in production, perfect for a course about what queries cost.
+      - "postgres"
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      - "work_mem=8MB"
+      - "-c"
+      - "log_min_duration_statement=0"
+      - "-c"
+      - "log_lock_waits=on"
+      - "-c"
+      - "deadlock_timeout=1s"
+      - "-c"
+      - "track_io_timing=on"
+    healthcheck:
+      # `pg_isready` goes true long before the seed finishes, and so does any
+      # query against `plays` - that table exists from the moment the schema
+      # runs, and an empty result is still a successful query. `lab_ready` is
+      # created by the very last statement of the seed, so its existence is the
+      # only honest "ready" signal.
+      test: ["CMD-SHELL", "pg_isready -U lab -d catalogue && psql -U lab -d catalogue -c 'select 1 from lab_ready' >/dev/null 2>&1"]
+      interval: 3s
+      timeout: 5s
+      retries: 40
+      start_period: 20s
+
+volumes:
+  lab-data:

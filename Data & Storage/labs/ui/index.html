@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data &amp; Storage Lab</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="brand"><span class="dot" id="live"></span> Data &amp; Storage Lab <em id="dbInfo">connecting…</em></div>
+  <nav id="tabs">
+    <button data-tab="schema" class="on">1 · Schema</button>
+    <button data-tab="plans">2 · Query plans</button>
+    <button data-tab="indexes">3 · Indexes</button>
+    <button data-tab="tx">4 · Transactions</button>
+    <button data-tab="locks">5 · Locks</button>
+    <button data-tab="nplus1">6 · N+1</button>
+    <button data-tab="pool">7 · Pool &amp; cost</button>
+  </nav>
+</header>
+
+<!-- ==================== 1. SCHEMA ==================== -->
+<section id="schema" class="tab on">
+  <h1>The schema, read from the database itself</h1>
+  <p class="lede">Nothing on this page is copied from the DDL file. It is queried live from Postgres'
+  own catalogue — <code>information_schema.columns</code> and <code>pg_constraint</code> — because a
+  diagram in a wiki starts drifting from reality the day after somebody runs a migration, and the
+  catalogue cannot.</p>
+
+  <div class="metrics" id="schemaMetrics"></div>
+
+  <h2>Tables</h2>
+  <div class="tables" id="tableList"></div>
+
+  <h2>Constraints — the promises the database keeps for you</h2>
+  <p class="lede">Application code validates when it remembers to. A constraint is enforced on every
+  write, from every client, including the migration you run by hand at 11pm. Note what is
+  <em>not</em> here: no index was created for any foreign key. Postgres never does that for you,
+  and Lab 3 is where you find out what it costs.</p>
+  <div class="pane"><table class="grid" id="consTable"></table></div>
+
+  <div class="cards">
+    <div class="card"><h4>The same catalogue as Course 1</h4><p>Artists, albums and tracks are the
+      domain you already served over REST, GraphQL and gRPC. Every difference you measure here is a
+      storage difference, not a domain difference.</p></div>
+    <div class="card"><h4>Plus a million plays</h4><p>The API course served 3 artists from an array.
+      At that size every plan is a sequential scan and every index is a waste of disk. Storage only
+      starts teaching at scale.</p></div>
+    <div class="card"><h4>Deliberately under-indexed</h4><p>Primary keys and unique constraints have
+      indexes. Nothing else does. That is the starting position for Lab 3, not an oversight.</p></div>
+  </div>
+</section>
+
+<!-- ==================== 2. QUERY PLANS ==================== -->
+<section id="plans" class="tab">
+  <h1>How a query actually runs</h1>
+  <p class="lede">SQL says <em>what</em> you want, never <em>how</em> to get it. The planner decides how,
+  by estimating the cost of each option from table statistics. <code>EXPLAIN</code> shows you the plan it
+  chose and what it guessed; <code>EXPLAIN ANALYZE</code> runs the query and shows what really happened.
+  <strong>The gap between planned and actual rows is where slow queries hide.</strong></p>
+
+  <div class="row">
+    <select id="qPick"></select>
+    <button class="alt" id="qLoad">Load</button>
+    <span class="hint" id="qTeaches"></span>
+  </div>
+
+  <textarea id="sqlBox" spellcheck="false">SELECT count(*) FROM plays WHERE track_id = 't5';</textarea>
+  <div class="row">
+    <button class="go" id="runPlan">▶ Explain and run</button>
+    <label class="hint"><input type="checkbox" id="doAnalyze" checked> ANALYZE (actually run it)</label>
+    <span class="hint">Writes are wrapped in a transaction and rolled back, so it is safe to plan an UPDATE.</span>
+  </div>
+
+  <div class="metrics" id="planMetrics"></div>
+  <div class="pane full"><h3>Plan tree <span class="sub">— read it bottom-up: the deepest node runs first</span></h3>
+    <pre class="out" id="planOut">Press “Explain and run”.</pre></div>
+
+  <div class="cards">
+    <div class="card"><h4>Seq Scan</h4><p>Read every row in the table. Correct at any size, and the
+      right choice when you genuinely want most of the rows. A disaster when you wanted twelve.</p></div>
+    <div class="card"><h4>Index Scan / Bitmap Heap Scan</h4><p>Use an index to find candidate rows,
+      then fetch them. Bitmap variants collect many matches first so the heap is read in page order.</p></div>
+    <div class="card"><h4>Index Only Scan</h4><p>The index held every column the query needed, so the
+      table was never touched. The cheapest read there is — and it depends on VACUUM keeping the
+      visibility map fresh.</p></div>
+    <div class="card"><h4>Rows removed by filter</h4><p>Work the database did and then threw away. A
+      large number here is the single clearest signal that an index is missing.</p></div>
+  </div>
+</section>
+
+<!-- ==================== 3. INDEXES ==================== -->
+<section id="indexes" class="tab">
+  <h1>Indexes, added and dropped against a live million-row table</h1>
+  <p class="lede">An index is not free storage magic. It is a <strong>permanent tax on every write</strong>,
+  paid so that some read gets cheaper. Nobody bills you for the tax explicitly, which is why databases
+  accumulate indexes nobody uses. The loop here: probe the query, add the index, probe again, then
+  measure what the write side lost.</p>
+
+  <div class="row">
+    <button class="alt" id="idxRefresh">Refresh</button>
+    <button class="alt" id="idxReset">Drop all lab indexes (back to start)</button>
+    <span class="hint" id="idxSummary"></span>
+  </div>
+
+  <div class="idx-list" id="idxList"></div>
+
+  <h2>What the writes paid</h2>
+  <p class="lede">This inserts rows into <code>plays</code> inside a transaction and rolls it back, so
+  the table never changes. Run it with no indexes, add three or four, then run it again. The
+  difference is the tax.</p>
+  <div class="row">
+    <button class="go" id="wcRun">▶ Time 20,000 inserts</button>
+    <span class="hint">Rolled back — row count never moves.</span>
+  </div>
+  <div class="metrics" id="wcMetrics"></div>
+  <div class="bars" id="wcBars"></div>
+
+  <h2>Indexes currently on the database</h2>
+  <div class="pane"><table class="grid" id="idxTable"></table></div>
+</section>
+
+<!-- ==================== 4. TRANSACTIONS ==================== -->
+<section id="tx" class="tab">
+  <h1>Isolation levels, one step at a time</h1>
+  <p class="lede">An isolation anomaly is a story about <em>interleaving</em>: A does this, B does that,
+  then A does this and gets an answer no single statement could ever produce. You have to watch it in
+  order. Below are two real Postgres backends with their own PIDs — nothing here is simulated.
+  <strong>Run a scenario, then change the isolation level and run the identical script again.</strong>
+  The script never changes; only the level does. That is what makes the comparison mean something.</p>
+
+  <div class="split">
+    <div>
+      <h3>Pick a scenario</h3>
+      <div class="scen-pick" id="scenList"></div>
+    </div>
+    <div>
+      <h3>Isolation level</h3>
+      <div class="pane">
+        <div class="row" style="margin-top:0">
+          <select id="isoPick"></select>
+          <button class="go" id="scenStart">▶ Start</button>
+          <button class="alt" id="scenStep">Step ▸</button>
+          <button class="alt" id="scenAll">Run to end ▸▸</button>
+          <button class="alt" id="scenReset">Reset</button>
+        </div>
+        <p class="hint" id="scenTeaches" style="margin:6px 0 0"></p>
+        <p class="hint" id="scenProgress" style="margin:8px 0 0"></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="board">
+    <div class="sess A"><header><span>Session A</span><span class="pid" id="pidA"></span></header>
+      <ul class="steps" id="stepsA"></ul></div>
+    <div class="sess B"><header><span>Session B</span><span class="pid" id="pidB"></span></header>
+      <ul class="steps" id="stepsB"></ul></div>
+  </div>
+
+  <div id="scenVerdict"></div>
+
+  <div class="cards">
+    <div class="card"><h4>READ COMMITTED</h4><p>Postgres' default. Each <em>statement</em> sees a fresh
+      snapshot. Cheap, and permits non-repeatable reads, phantoms, lost updates and write skew.</p></div>
+    <div class="card"><h4>REPEATABLE READ</h4><p>One snapshot for the whole <em>transaction</em>. In
+      Postgres this also stops phantoms, which the SQL standard does not require. Still permits write skew.</p></div>
+    <div class="card"><h4>SERIALIZABLE</h4><p>Guarantees the result matches <em>some</em> serial order.
+      The only level that catches write skew. Costs you 40001 errors, which your code must retry.</p></div>
+    <div class="card"><h4>40001 is not a failure</h4><p>A serialization error means the database
+      refused to corrupt your data. The bug is not having a retry loop around the transaction.</p></div>
+  </div>
+</section>
+
+<!-- ==================== 5. LOCKS ==================== -->
+<section id="locks" class="tab">
+  <h1>Who is blocking whom</h1>
+  <p class="lede">This is the query to memorise. During an incident, "the database is slow" is almost
+  never about CPU — it is one transaction holding a lock while a queue forms behind it. The view below
+  joins <code>pg_stat_activity</code> to <code>pg_blocking_pids()</code> and answers the only question
+  that matters: which PID is waiting, and who is it waiting on.</p>
+
+  <div class="row">
+    <button class="go" id="lkRefresh">▶ Refresh now</button>
+    <label class="hint"><input type="checkbox" id="lkAuto"> auto-refresh every 2s</label>
+    <span class="hint">Start the <strong>deadlock</strong> or <strong>SELECT FOR UPDATE</strong>
+      scenario in tab 4, stop at the blocking step, then come here.</span>
+  </div>
+
+  <h3>Wait edges</h3>
+  <div class="pane"><table class="grid" id="lkBlocking"></table></div>
+
+  <h3 style="margin-top:26px">Locks held on the lab tables</h3>
+  <div class="pane"><table class="grid" id="lkHeld"></table></div>
+
+  <div class="cards">
+    <div class="card"><h4>idle in transaction</h4><p>A session that ran BEGIN and then went to lunch.
+      It holds every lock it has taken and blocks VACUUM from cleaning up. Set
+      <code>idle_in_transaction_session_timeout</code> and stop guessing.</p></div>
+    <div class="card"><h4>Lock ordering</h4><p>Deadlocks are not caused by too many locks. They are
+      caused by two code paths taking the same locks in different orders. Fix the order, not the
+      timeout.</p></div>
+    <div class="card"><h4>Long transactions are the cost</h4><p>The damage a transaction does is
+      measured by how long it holds locks, not by how much work it does. Never keep one open across
+      a network call to something you do not control.</p></div>
+  </div>
+</section>
+
+<!-- ==================== 6. N+1 ==================== -->
+<section id="nplus1" class="tab">
+  <h1>The N+1, now with a database underneath it</h1>
+  <p class="lede">In the API Design course the naive REST bar was <strong>4 HTTP round trips</strong>.
+  That was half the bill. Each of those requests also ran queries — and this is where you see how many.
+  Same artist page, three implementations, real query counts.</p>
+
+  <div class="row">
+    <button class="go" id="npRun">▶ Build the artist page three ways</button>
+    <select id="npArtist">
+      <option value="a1">a1 · Nova Kim</option>
+      <option value="a2">a2 · The Long Way</option>
+      <option value="a3">a3 · Ama Boateng</option>
+    </select>
+  </div>
+
+  <p class="hint" id="npHint"></p>
+  <div class="bars" id="npBars"></div>
+  <div class="pane full"><table class="grid" id="npTable"></table></div>
+
+  <div class="cards">
+    <div class="card"><h4>Fewer queries is not automatically better</h4><p>The single-query version
+      shapes JSON in SQL. It is the fastest and the hardest to maintain. That is a real trade, not a
+      free win.</p></div>
+    <div class="card"><h4>N+1 hides behind good code</h4><p>Nothing looks wrong in a loop that fetches
+      one album's tracks. The bug is only visible when you count statements, which is why counting
+      them is a habit worth having.</p></div>
+    <div class="card"><h4>Indexes change this picture</h4><p>Run it once now, add
+      <code>tracks(album_id)</code> in tab 3, then run it again. The N+1 stays an N+1 — it just gets
+      cheaper per query.</p></div>
+  </div>
+</section>
+
+<!-- ==================== 7. POOL ==================== -->
+<section id="pool" class="tab">
+  <h1>Connections are not free, and the pool has a floor</h1>
+  <p class="lede">Every Postgres connection is a <strong>forked backend process</strong> on the server —
+  tens of milliseconds and a few megabytes to create. A pool amortises that away. But a pool also has a
+  size, and asking for more concurrency than it has does not fail: it <em>queues</em>, silently, inside
+  your application. That queue is latency your database metrics will never explain, because from
+  Postgres' point of view nothing was slow.</p>
+
+  <h2>What a connection costs</h2>
+  <div class="row">
+    <button class="go" id="ccRun">▶ Compare new connection vs pooled</button>
+  </div>
+  <div class="metrics" id="ccMetrics"></div>
+
+  <h2>Saturating the pool</h2>
+  <div class="row">
+    <label class="hint">concurrency <input type="number" id="poolN" value="24" min="1" max="200" style="width:80px"></label>
+    <label class="hint">work per request (ms) <input type="number" id="poolW" value="50" min="1" max="500" style="width:80px"></label>
+    <button class="go" id="poolRun">▶ Run</button>
+    <span class="hint" id="poolSize"></span>
+  </div>
+  <div class="metrics" id="poolMetrics"></div>
+  <div class="pane" id="poolVerdict" style="display:none"></div>
+
+  <h2>The server's connection budget</h2>
+  <div class="pane"><table class="mini" id="budgetTable"></table></div>
+
+  <div class="cards">
+    <div class="card"><h4>Sizing</h4><p>Start near <code>cores × 2</code>, then measure. A bigger pool
+      is not a faster database — past a point you are just moving the queue from your app onto the
+      server.</p></div>
+    <div class="card"><h4>Every app instance has its own pool</h4><p>Ten pods × a pool of 20 is 200
+      connections. Compare that with <code>max_connections</code> before you scale out, not after.</p></div>
+    <div class="card"><h4>Where the queue hides</h4><p>Slow endpoint, fast queries, idle CPU: look at
+      pool wait time. It is one of the most commonly missed sources of production latency.</p></div>
+  </div>
+</section>
+
+<script src="/app.js"></script>
+</body>
+</html>

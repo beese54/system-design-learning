@@ -1,0 +1,20 @@
+{
+  "name": "data-storage-labs",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Runnable labs for the Data & Storage course: query plans, indexes, transactions and locks against a real Postgres.",
+  "scripts": {
+    "start": "node server.js",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:reset": "docker compose down -v && docker compose up -d",
+    "db:psql": "docker compose exec db psql -U lab -d catalogue",
+    "db:wait": "node pg/wait.js",
+    "check": "node --check server.js && node --check pg/db.js"
+  },
+  "dependencies": {
+    "pg": "^8.13.0"
+  },
+  "engines": { "node": ">=20" }
+}
