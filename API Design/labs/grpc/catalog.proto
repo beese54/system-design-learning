@@ -1,0 +1,60 @@
+// LAB 3 - the gRPC contract.
+//
+// This file IS the API. Both sides compile it: the server gets stubs to
+// implement, the client gets typed functions to call. Nobody reads docs to
+// learn the field names, and nobody can ship a client that disagrees with the
+// server, because the compiler would refuse.
+syntax = "proto3";
+
+package riff.catalog.v1;
+
+message Artist {
+  string id      = 1;   // field NUMBERS are the contract on the wire, not names
+  string name    = 2;   // renaming `name` breaks nothing; reusing tag 2 breaks everything
+  string country = 3;
+  int32  formed  = 4;
+  string bio     = 5;
+}
+
+message Album {
+  string id        = 1;
+  string artist_id = 2;
+  string title     = 3;
+  int32  year      = 4;
+  string artwork   = 5;
+  repeated Track tracks = 6;   // `repeated` == list
+}
+
+message Track {
+  string id      = 1;
+  string title   = 2;
+  int32  seconds = 3;
+  int64  plays   = 4;
+}
+
+message GetArtistRequest  { string id = 1; }
+message ListAlbumsRequest { string artist_id = 1; bool include_tracks = 2; }
+message AlbumList         { repeated Album albums = 1; }
+message WatchPlaysRequest { int32 limit = 1; }
+
+message PlayEvent {
+  string track_id = 1;
+  string title    = 2;
+  string artist   = 3;
+  string city     = 4;
+  string at       = 5;
+}
+
+message AddArtistRequest { string name = 1; string country = 2; int32 formed = 3; string bio = 4; }
+
+service CatalogService {
+  // Unary: one request, one response. The 95% case.
+  rpc GetArtist  (GetArtistRequest)  returns (Artist);
+  rpc ListAlbums (ListAlbumsRequest) returns (AlbumList);
+  rpc AddArtist  (AddArtistRequest)  returns (Artist);
+
+  // Server streaming: one request, a stream of responses over the SAME
+  // HTTP/2 connection. This is the capability REST cannot express, and the
+  // reason gRPC keeps winning service-to-service work.
+  rpc WatchPlays (WatchPlaysRequest) returns (stream PlayEvent);
+}

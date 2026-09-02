@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API Design Lab</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="brand"><span class="dot"></span> API Design Lab <em>Riff music catalogue</em></div>
+  <nav id="tabs">
+    <button data-tab="anatomy" class="on">1 · Anatomy</button>
+    <button data-tab="arch">2 · Architecture</button>
+    <button data-tab="rest">3 · REST</button>
+    <button data-tab="graphql">4 · GraphQL</button>
+    <button data-tab="grpc">5 · gRPC</button>
+    <button data-tab="compare">6 · Compare</button>
+    <button data-tab="process">7 · Design process</button>
+  </nav>
+</header>
+
+<!-- ==================== 1. ANATOMY ==================== -->
+<section id="anatomy" class="tab on">
+  <h1>What an API actually is</h1>
+  <p class="lede">An API is a <strong>promise about behaviour across a boundary</strong>. One side agrees to accept
+  certain messages and to answer in a certain shape; the other side agrees to ask only in that vocabulary.
+  Everything below the promise — the language, the database, the deploy schedule — stays private and swappable.</p>
+
+  <div class="anatomy-stage">
+    <div class="node client" id="anClient">
+      <div class="node-title">Client</div>
+      <div class="node-sub">web app · mobile app · another service</div>
+      <div class="node-note">knows the contract, knows nothing else</div>
+    </div>
+
+    <div class="wire">
+      <div class="packet" id="anPacket"></div>
+      <div class="wire-label" id="anWireLabel">HTTP request</div>
+    </div>
+
+    <div class="node contract" id="anContract">
+      <div class="node-title">The contract</div>
+      <div class="node-sub">URL · method · payload shape · status codes · errors · versioning</div>
+      <div class="node-note">the only thing both sides depend on</div>
+    </div>
+
+    <div class="wire">
+      <div class="wire-label">internal calls</div>
+    </div>
+
+    <div class="node server" id="anServer">
+      <div class="node-title">Implementation</div>
+      <div class="node-sub">business logic · database · caches · other services</div>
+      <div class="node-note">free to change, as long as the promise holds</div>
+    </div>
+  </div>
+
+  <div class="row">
+    <button class="go" id="anRun">▶ Send a real request</button>
+    <span class="hint">This calls the live REST lab running on this same server.</span>
+  </div>
+
+  <div class="split">
+    <div class="pane"><h3>What the client sends</h3><pre id="anReq" class="wire-text">press the button</pre></div>
+    <div class="pane"><h3>What the server promises back</h3><pre id="anRes" class="wire-text">…</pre></div>
+  </div>
+
+  <div class="cards">
+    <div class="card"><h4>Interface, not implementation</h4><p>The client never learns whether the data came from Postgres, a cache, or a spreadsheet. That ignorance is the product.</p></div>
+    <div class="card"><h4>A contract, not a suggestion</h4><p>Once someone builds on your response shape, changing it breaks them. This is why API design is more like publishing than coding.</p></div>
+    <div class="card"><h4>A boundary you can price</h4><p>Round trips, payload bytes, and failure modes all live at this boundary — so design decisions here show up directly in latency and cost.</p></div>
+  </div>
+</section>
+
+<!-- ==================== 2. ARCHITECTURE ==================== -->
+<section id="arch" class="tab">
+  <h1>Where APIs sit in a system</h1>
+  <p class="lede">Click any box. In a real system an API is not one thing — you will usually operate three
+  different kinds at once, with different audiences and very different rules.</p>
+
+  <div class="arch-grid">
+    <svg viewBox="0 0 640 460" class="arch-svg" role="img" aria-label="System architecture diagram">
+      <defs>
+        <marker id="arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+          <path d="M0,0 L9,4.5 L0,9 z" fill="#7d8590"/>
+        </marker>
+      </defs>
+
+      <g class="hot" data-info="clients">
+        <rect x="30" y="20" width="160" height="54" rx="8"/><text x="110" y="43">Web app</text><text x="110" y="61" class="sm">browser · React</text>
+      </g>
+      <g class="hot" data-info="clients">
+        <rect x="240" y="20" width="160" height="54" rx="8"/><text x="320" y="43">Mobile app</text><text x="320" y="61" class="sm">iOS · Android</text>
+      </g>
+      <g class="hot" data-info="partners">
+        <rect x="450" y="20" width="160" height="54" rx="8"/><text x="530" y="43">Partner systems</text><text x="530" y="61" class="sm">integrations · webhooks</text>
+      </g>
+
+      <line x1="110" y1="74" x2="230" y2="118" marker-end="url(#arrow)"/>
+      <line x1="320" y1="74" x2="320" y2="118" marker-end="url(#arrow)"/>
+      <line x1="530" y1="74" x2="410" y2="118" marker-end="url(#arrow)"/>
+
+      <g class="hot band" data-info="edge">
+        <rect x="70" y="120" width="500" height="62" rx="8"/>
+        <text x="320" y="146">API gateway / edge</text>
+        <text x="320" y="166" class="sm">auth · rate limits · TLS · routing · versioning · observability</text>
+      </g>
+
+      <line x1="180" y1="182" x2="140" y2="226" marker-end="url(#arrow)"/>
+      <line x1="320" y1="182" x2="320" y2="226" marker-end="url(#arrow)"/>
+      <line x1="460" y1="182" x2="500" y2="226" marker-end="url(#arrow)"/>
+
+      <g class="hot" data-info="public">
+        <rect x="60" y="228" width="160" height="58" rx="8"/><text x="140" y="252">Catalog service</text><text x="140" y="270" class="sm">REST · public shape</text>
+      </g>
+      <g class="hot" data-info="internal">
+        <rect x="240" y="228" width="160" height="58" rx="8"/><text x="320" y="252">Playback service</text><text x="320" y="270" class="sm">gRPC · internal</text>
+      </g>
+      <g class="hot" data-info="internal">
+        <rect x="420" y="228" width="160" height="58" rx="8"/><text x="500" y="252">Billing service</text><text x="500" y="270" class="sm">gRPC · internal</text>
+      </g>
+
+      <line x1="140" y1="286" x2="140" y2="330" marker-end="url(#arrow)"/>
+      <line x1="320" y1="286" x2="320" y2="330" marker-end="url(#arrow)"/>
+      <line x1="500" y1="286" x2="500" y2="330" marker-end="url(#arrow)"/>
+      <line x1="220" y1="257" x2="238" y2="257" marker-end="url(#arrow)"/>
+      <line x1="400" y1="257" x2="418" y2="257" marker-end="url(#arrow)"/>
+
+      <g class="hot store" data-info="data">
+        <rect x="60" y="332" width="160" height="52" rx="8"/><text x="140" y="356">Postgres</text><text x="140" y="373" class="sm">catalog tables</text>
+      </g>
+      <g class="hot store" data-info="data">
+        <rect x="240" y="332" width="160" height="52" rx="8"/><text x="320" y="356">Event stream</text><text x="320" y="373" class="sm">plays · async</text>
+      </g>
+      <g class="hot store" data-info="data">
+        <rect x="420" y="332" width="160" height="52" rx="8"/><text x="500" y="356">Stripe API</text><text x="500" y="373" class="sm">someone else's contract</text>
+      </g>
+
+      <text x="320" y="424" class="cap">Every arrow crossing a box is an API. The ones crossing the edge band are the expensive ones to change.</text>
+    </svg>
+
+    <aside class="info" id="archInfo">
+      <h3>Three audiences, three rule sets</h3>
+      <p>Pick a box in the diagram to see who consumes it, what breaks when it changes, and which protocol usually wins there.</p>
+      <table class="mini">
+        <tr><th>Kind</th><th>Consumer</th><th>Cost of change</th></tr>
+        <tr><td>Public</td><td>strangers</td><td>very high — forever</td></tr>
+        <tr><td>Partner</td><td>named orgs</td><td>high — contractual</td></tr>
+        <tr><td>Internal</td><td>your teams</td><td>low — deploy together</td></tr>
+      </table>
+    </aside>
+  </div>
+</section>
+
+<!-- ==================== 3. REST ==================== -->
+<section id="rest" class="tab">
+  <h1>Lab 1 · REST over HTTP</h1>
+  <p class="lede">REST models the world as <strong>resources with addresses</strong>. HTTP already knows how to
+  fetch, cache, retry and version addressable things — REST's whole bet is to reuse that instead of inventing it.
+  Source: <code>labs/rest/api.js</code>.</p>
+
+  <div class="lab">
+    <div class="controls">
+      <h3>Endpoints</h3>
+      <div class="btns" id="restBtns"></div>
+      <h3>Try the mechanics</h3>
+      <div class="btns" id="restMech"></div>
+      <label class="chk"><input type="checkbox" id="restReuseEtag"> send <code>If-None-Match</code> from last response</label>
+    </div>
+
+    <div class="output">
+      <div class="statusbar" id="restStatus"><span class="pill neutral">idle</span></div>
+      <div class="metrics" id="restMetrics"></div>
+      <div class="split">
+        <div class="pane"><h3>Request</h3><pre id="restReq" class="wire-text">pick an endpoint</pre></div>
+        <div class="pane"><h3>Response headers</h3><pre id="restHeaders" class="wire-text">…</pre></div>
+      </div>
+      <div class="pane full"><h3>Response body</h3><pre id="restBody" class="wire-text">…</pre></div>
+    </div>
+  </div>
+
+  <div class="cards">
+    <div class="card"><h4>Nouns in the URL, verbs in the method</h4><p><code>GET /artists/a1</code>, never <code>/getArtist?id=a1</code>. The method already says what you are doing, and infrastructure understands it.</p></div>
+    <div class="card"><h4>Status codes are the API</h4><p><code>201</code>+<code>Location</code>, <code>204</code>, <code>304</code>, <code>404</code>, <code>422</code>, <code>409</code>. A 200 carrying <code>{"status":"error"}</code> throws away everything the network knows how to do for you.</p></div>
+    <div class="card"><h4>The N+1 tax</h4><p>Resource granularity is a trade: small resources cache beautifully and cost round trips. Watch the call count on the Compare tab.</p></div>
+  </div>
+</section>
+
+<!-- ==================== 4. GRAPHQL ==================== -->
+<section id="graphql" class="tab">
+  <h1>Lab 2 · GraphQL</h1>
+  <p class="lede">One endpoint, one type graph, and the <strong>client</strong> declares the response shape.
+  You buy the end of over-fetching and round-trip waterfalls; you pay in caching, cost control and observability.
+  Source: <code>labs/graphql/schema.js</code>.</p>
+
+  <div class="lab">
+    <div class="controls">
+      <h3>Example queries</h3>
+      <div class="btns" id="gqlPresets"></div>
+      <label class="chk"><input type="checkbox" id="gqlBatch"> per-request batching (DataLoader idea)</label>
+      <button class="go" id="gqlRun">▶ Run query</button>
+      <button class="ghost" id="gqlSdl">View schema (SDL)</button>
+    </div>
+
+    <div class="output">
+      <div class="pane full"><h3>Query <span class="sub">POST /graphql</span></h3>
+        <textarea id="gqlQuery" spellcheck="false">{
+  artist(id: "a1") {
+    name
+    albums {
+      title
+      year
+      tracks { title seconds }
+    }
+  }
+}</textarea>
+      </div>
+      <div class="metrics" id="gqlMetrics"></div>
+      <div class="pane full"><h3>Response</h3><pre id="gqlBody" class="wire-text">…</pre></div>
+    </div>
+  </div>
+
+  <div class="cards">
+    <div class="card"><h4>Always 200</h4><p>Failures come back inside <code>errors</code> alongside partial <code>data</code>. Your monitoring must learn to read bodies, not status codes.</p></div>
+    <div class="card"><h4>One URL kills HTTP caching</h4><p>No per-resource ETags. You replace them with persisted queries, CDN tricks and client-side normalised caches.</p></div>
+    <div class="card"><h4>Flexibility is an attack surface</h4><p>Depth limits, cost analysis and allow-lists are not optional extras — try the "deep query" preset and watch it get rejected.</p></div>
+  </div>
+</section>
+
+<!-- ==================== 5. GRPC ==================== -->
+<section id="grpc" class="tab">
+  <h1>Lab 3 · gRPC</h1>
+  <p class="lede">Not resources and not queries — <strong>typed function calls</strong> defined in a
+  <code>.proto</code> file, serialised as binary protobuf over HTTP/2. Fast, strict, streaming-native, and
+  invisible to your browser without a gateway. Source: <code>labs/grpc/catalog.proto</code>.</p>
+
+  <div class="lab">
+    <div class="controls">
+      <h3>Calls</h3>
+      <div class="btns" id="grpcBtns"></div>
+      <h3>Server streaming</h3>
+      <button class="go" id="grpcWatch">▶ WatchPlays (live stream)</button>
+      <button class="ghost" id="grpcProto">View catalog.proto</button>
+    </div>
+
+    <div class="output">
+      <div class="metrics" id="grpcMetrics"></div>
+      <div class="wirechart" id="grpcChart"></div>
+      <div class="split">
+        <div class="pane"><h3>Decoded response</h3><pre id="grpcBody" class="wire-text">pick a call</pre></div>
+        <div class="pane"><h3>Live stream</h3><div id="grpcStream" class="stream">idle</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cards">
+    <div class="card"><h4>The contract is compiled</h4><p>Both sides generate code from the same <code>.proto</code>. A field mismatch is a build error, not a 3 a.m. page.</p></div>
+    <div class="card"><h4>Field numbers, not names</h4><p>Tags 1,2,3… are the wire format. Renaming a field is free; reusing a retired tag number silently corrupts data.</p></div>
+    <div class="card"><h4>Browsers cannot speak it</h4><p>This page talks to a bridge (<code>labs/grpc/bridge.js</code>) that re-emits gRPC as JSON and SSE — exactly the hop Envoy/gRPC-Web performs in production.</p></div>
+  </div>
+</section>
+
+<!-- ==================== 6. COMPARE ==================== -->
+<section id="compare" class="tab">
+  <h1>Same screen, three protocols</h1>
+  <p class="lede">Scenario: render one artist page — the artist, their albums, and every track on every album.
+  Numbers below are measured live on this machine, not copied from a blog post.</p>
+
+  <button class="go" id="cmpRun">▶ Run the benchmark</button>
+  <div id="cmpCharts" class="charts"></div>
+
+  <h2>Choosing, honestly</h2>
+  <table class="matrix">
+    <thead><tr><th>Question</th><th>REST</th><th>GraphQL</th><th>gRPC</th></tr></thead>
+    <tbody>
+      <tr><td>Who is the consumer?</td><td>anyone, incl. strangers</td><td>your own varied front ends</td><td>your own services</td></tr>
+      <tr><td>Shape decided by</td><td>server</td><td>client, per query</td><td>the shared <code>.proto</code></td></tr>
+      <tr><td>Transport</td><td>HTTP/1.1 or 2, JSON</td><td>HTTP POST, JSON</td><td>HTTP/2, protobuf</td></tr>
+      <tr><td>Caching</td><td>free, from HTTP</td><td>you build it</td><td>you build it</td></tr>
+      <tr><td>Streaming</td><td>bolt-on (SSE, WS)</td><td>subscriptions</td><td>native, four modes</td></tr>
+      <tr><td>Browser support</td><td>native</td><td>native</td><td>needs a proxy</td></tr>
+      <tr><td>Tooling on day one</td><td>curl, any browser</td><td>schema explorer</td><td>generated stubs</td></tr>
+      <tr><td>Failure mode when abused</td><td>chatty waterfalls</td><td>one query melts the DB</td><td>lockstep deploys</td></tr>
+    </tbody>
+  </table>
+
+  <h2>The decision, as a flow</h2>
+  <div class="flow" id="flow">
+    <div class="q">Does a browser or a stranger call it directly?</div>
+    <div class="branch">
+      <div class="yes">
+        <span class="tag">yes</span>
+        <div class="q">Do different clients need very different slices of the same graph?</div>
+        <div class="branch">
+          <div class="yes"><span class="tag">yes</span><div class="ans gql">GraphQL at the edge</div></div>
+          <div class="no"><span class="tag">no</span><div class="ans rest">REST + HTTP caching</div></div>
+        </div>
+      </div>
+      <div class="no">
+        <span class="tag">no — service to service</span>
+        <div class="q">High call volume, strict types, or streaming?</div>
+        <div class="branch">
+          <div class="yes"><span class="tag">yes</span><div class="ans grpc">gRPC</div></div>
+          <div class="no"><span class="tag">no</span><div class="ans rest">REST is fine — boring is a feature</div></div>
+        </div>
+      </div>
+    </div>
+    <p class="foot">Most real systems answer <em>all three</em>: gRPC between services, REST or GraphQL at the edge, events for anything that must not block.</p>
+  </div>
+</section>
+
+<!-- ==================== 7. PROCESS ==================== -->
+<section id="process" class="tab">
+  <h1>The API design process</h1>
+  <p class="lede">Design happens before the first route handler. Tick items as you work — progress is saved in this browser.</p>
+  <div class="steps" id="steps"></div>
+</section>
+
+<script src="/app.js"></script>
+</body>
+</html>

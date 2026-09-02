@@ -1,0 +1,19 @@
+{
+  "name": "api-design-labs",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Runnable labs for the API Design course: REST, GraphQL and gRPC over one shared domain.",
+  "scripts": {
+    "start": "node server.js",
+    "grpc": "node grpc/server.js",
+    "check": "node --check server.js && node --check rest/api.js && node --check graphql/api.js"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.12.0",
+    "@grpc/proto-loader": "^0.7.13",
+    "graphql": "^16.9.0",
+    "protobufjs": "^7.4.0"
+  },
+  "engines": { "node": ">=20" }
+}

@@ -1,0 +1,735 @@
+<title>API Design Field Guide</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;1,400&display=swap">
+
+<style>
+/* ============================================================
+   API Design Field Guide
+   Identity: an engineering spec sheet. IBM Plex family, thin
+   rules, tabular data, protocol hues used as categorical color.
+   Light palette is the base; dark redefines tokens only.
+   ============================================================ */
+:root {
+  --paper:      #F5F7F6;
+  --panel:      #FFFFFF;
+  --ink:        #17212B;
+  --ink-2:      #48596A;
+  --ink-3:      #77879A;
+  --rule:       #DCE3E5;
+  --rule-2:     #EDF1F1;
+  --chrome:     #2B4257;
+
+  /* categorical: validated (light, ΔE deutan 15.2 / normal 23.5, contrast ≥3:1) */
+  --rest:       #4E9755;
+  --gql:        #A01F70;
+  --grpc:       #3455C8;
+  --rest-soft:  #4E975522;
+  --gql-soft:   #A01F7018;
+  --grpc-soft:  #3455C818;
+
+  --code-bg:    #EFF3F2;
+  --shadow:     0 1px 2px rgba(23,33,43,.05), 0 8px 24px -18px rgba(23,33,43,.35);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper:     #12171B;
+    --panel:     #1A2126;
+    --ink:       #E7EDF1;
+    --ink-2:     #A5B4C0;
+    --ink-3:     #7A8B99;
+    --rule:      #2A343C;
+    --rule-2:    #212A31;
+    --chrome:    #9FC2DE;
+    --rest:      #4FA25B;
+    --gql:       #CC4F97;
+    --grpc:      #6C82E4;
+    --rest-soft: #4FA25B26;
+    --gql-soft:  #CC4F9722;
+    --grpc-soft: #6C82E422;
+    --code-bg:   #151C21;
+    --shadow:    0 1px 2px rgba(0,0,0,.4), 0 10px 30px -20px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"] {
+  --paper:     #12171B;
+  --panel:     #1A2126;
+  --ink:       #E7EDF1;
+  --ink-2:     #A5B4C0;
+  --ink-3:     #7A8B99;
+  --rule:      #2A343C;
+  --rule-2:    #212A31;
+  --chrome:    #9FC2DE;
+  --rest:      #4FA25B;
+  --gql:       #CC4F97;
+  --grpc:      #6C82E4;
+  --rest-soft: #4FA25B26;
+  --gql-soft:  #CC4F9722;
+  --grpc-soft: #6C82E422;
+  --code-bg:   #151C21;
+  --shadow:    0 1px 2px rgba(0,0,0,.4), 0 10px 30px -20px rgba(0,0,0,.8);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px 96px; }
+
+/* ---------- masthead ---------- */
+.masthead {
+  border-bottom: 1px solid var(--rule);
+  padding: 56px 0 28px;
+  display: grid;
+  gap: 18px;
+}
+.eyebrow {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 11.5px; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--ink-3);
+}
+h1 {
+  font-size: clamp(34px, 6vw, 56px);
+  line-height: 1.02; margin: 0; font-weight: 600; letter-spacing: -.025em;
+  text-wrap: balance;
+}
+.thesis {
+  font-family: "IBM Plex Serif", Georgia, serif;
+  font-size: clamp(17px, 2.3vw, 21px);
+  line-height: 1.55; color: var(--ink-2); max-width: 62ch; margin: 0;
+}
+.masthead-meta {
+  display: flex; flex-wrap: wrap; gap: 8px 26px;
+  font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--ink-3);
+  border-top: 1px solid var(--rule-2); padding-top: 16px;
+}
+
+/* ---------- layout ---------- */
+.columns { display: grid; grid-template-columns: 178px 1fr; gap: 44px; align-items: start; }
+@media (max-width: 940px) { .columns { grid-template-columns: 1fr; gap: 8px; } nav.toc { display: none; } }
+
+nav.toc { position: sticky; top: 28px; padding-top: 44px; display: grid; gap: 2px; }
+nav.toc a {
+  font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--ink-3);
+  text-decoration: none; padding: 4px 0 4px 12px; border-left: 2px solid var(--rule);
+  display: block;
+}
+nav.toc a:hover, nav.toc a:focus-visible { color: var(--ink); border-left-color: var(--chrome); }
+
+main { min-width: 0; display: grid; gap: 0; }
+
+section { padding: 44px 0; border-bottom: 1px solid var(--rule-2); scroll-margin-top: 20px; }
+section > * + * { margin-top: 18px; }
+
+h2 {
+  font-size: 26px; font-weight: 600; letter-spacing: -.02em; margin: 0;
+  display: flex; align-items: baseline; gap: 12px; text-wrap: balance;
+}
+h2 .num {
+  font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--ink-3);
+  letter-spacing: .1em; flex: none;
+}
+h3 { font-size: 15px; font-weight: 600; margin: 0 0 8px; letter-spacing: -.01em; }
+p { margin: 0; max-width: 68ch; color: var(--ink-2); }
+p strong, li strong { color: var(--ink); font-weight: 600; }
+.lead { color: var(--ink); }
+
+code, .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: .87em; }
+p code, li code, td code { background: var(--code-bg); padding: 1px 5px; border-radius: 3px; color: var(--ink); }
+
+pre {
+  background: var(--code-bg); border: 1px solid var(--rule-2); border-radius: 6px;
+  padding: 14px 16px; overflow-x: auto; margin: 0;
+  font-family: "IBM Plex Mono", monospace; font-size: 12.5px; line-height: 1.62; color: var(--ink);
+}
+
+/* ---------- contract diagram ---------- */
+.contract {
+  display: grid; grid-template-columns: 1fr auto 1.15fr auto 1fr; align-items: stretch; gap: 0;
+}
+@media (max-width: 780px) { .contract { grid-template-columns: 1fr; } .contract .link { height: 26px; width: 1px; margin: 0 auto; } }
+.box {
+  background: var(--panel); border: 1px solid var(--rule); border-radius: 8px;
+  padding: 16px; box-shadow: var(--shadow);
+}
+.box.center { border-color: var(--chrome); }
+.box h4 { margin: 0 0 4px; font-size: 14.5px; font-weight: 600; }
+.box p { font-size: 13px; margin: 0; }
+.box .foot {
+  margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--rule);
+  font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--ink-3);
+}
+.link { align-self: center; width: 46px; height: 1px; background: var(--rule); position: relative; }
+.link span {
+  position: absolute; left: 50%; top: -22px; transform: translateX(-50%);
+  font-family: "IBM Plex Mono", monospace; font-size: 10.5px; color: var(--ink-3); white-space: nowrap;
+}
+
+/* ---------- tables ---------- */
+.tablewrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 8px; background: var(--panel); }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--rule-2); vertical-align: top; }
+thead th {
+  font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .09em;
+  text-transform: uppercase; color: var(--ink-3); font-weight: 500; white-space: nowrap;
+}
+tbody tr:last-child td { border-bottom: 0; }
+td:first-child { color: var(--ink); }
+td, th { color: var(--ink-2); }
+.num-cell { font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+
+/* ---------- principle grid ---------- */
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(232px, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
+.grid .cell { background: var(--panel); padding: 16px; }
+.grid .cell p { font-size: 13.5px; }
+
+/* ---------- protocol cards ---------- */
+.styles { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 16px; }
+.style {
+  background: var(--panel); border: 1px solid var(--rule); border-radius: 8px;
+  padding: 0; overflow: hidden; box-shadow: var(--shadow); display: flex; flex-direction: column;
+}
+.style header { padding: 14px 16px 12px; border-bottom: 1px solid var(--rule-2); }
+.style .tag {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--ink-3);
+}
+.swatch { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+.style h3 { font-size: 19px; margin: 6px 0 4px; letter-spacing: -.02em; }
+.style .oneline { font-size: 13.5px; color: var(--ink-2); }
+.style pre { border: 0; border-radius: 0; border-top: 1px solid var(--rule-2); background: var(--code-bg); font-size: 11.8px; }
+.style dl { margin: 0; padding: 12px 16px 16px; display: grid; gap: 9px; font-size: 13px; }
+.style dt { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3); }
+.style dd { margin: 2px 0 0; color: var(--ink-2); }
+.style[data-p="rest"] { border-top: 3px solid var(--rest); }
+.style[data-p="gql"]  { border-top: 3px solid var(--gql); }
+.style[data-p="grpc"] { border-top: 3px solid var(--grpc); }
+
+/* ---------- chart ---------- */
+.figure { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 18px; box-shadow: var(--shadow); }
+.figure + .figure { margin-top: 14px; }
+.figtitle { font-size: 14px; font-weight: 600; margin: 0 0 2px; }
+.figsub { font-size: 12.5px; color: var(--ink-3); margin: 0 0 16px; max-width: 62ch; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-bottom: 14px; }
+.legend span { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--ink-2); }
+.bars { display: grid; gap: 10px; }
+.barrow { display: grid; grid-template-columns: 122px 1fr; gap: 12px; align-items: center; }
+@media (max-width: 620px) { .barrow { grid-template-columns: 96px 1fr; } }
+.barlabel { font-size: 12.5px; color: var(--ink-2); }
+.bartrack { position: relative; height: 20px; display: flex; align-items: center; gap: 8px; }
+.barfill { height: 20px; border-radius: 0 4px 4px 0; transition: width .5s cubic-bezier(.2,.7,.3,1); }
+.barval { font-family: "IBM Plex Mono", monospace; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+.barrow:hover .barfill { filter: brightness(1.06); }
+.tip {
+  position: fixed; pointer-events: none; opacity: 0; transform: translate(-50%, -120%);
+  background: var(--ink); color: var(--paper); border-radius: 5px; padding: 7px 10px;
+  font-family: "IBM Plex Mono", monospace; font-size: 11.5px; line-height: 1.5; white-space: nowrap;
+  transition: opacity .12s ease; z-index: 40;
+}
+.caveat {
+  border-left: 2px solid var(--chrome); padding: 2px 0 2px 14px; font-size: 13.5px; color: var(--ink-2);
+  max-width: 66ch;
+}
+
+/* ---------- decision flow ---------- */
+.flow { display: grid; gap: 12px; }
+.qnode {
+  background: var(--panel); border: 1px solid var(--rule); border-radius: 8px;
+  padding: 12px 14px; font-size: 14.5px; color: var(--ink); font-weight: 500;
+}
+.branches { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding-left: 18px; border-left: 1px dashed var(--rule); }
+@media (max-width: 700px) { .branches { grid-template-columns: 1fr; } }
+.branch .edge {
+  font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .09em;
+  text-transform: uppercase; color: var(--ink-3); display: block; margin-bottom: 7px;
+}
+.branch > * + * { margin-top: 10px; }
+.verdict {
+  display: inline-block; border-radius: 6px; padding: 9px 13px; font-weight: 600; font-size: 14px;
+  border: 1px solid;
+}
+.verdict.rest { color: var(--rest); border-color: var(--rest); background: var(--rest-soft); }
+.verdict.gql  { color: var(--gql);  border-color: var(--gql);  background: var(--gql-soft); }
+.verdict.grpc { color: var(--grpc); border-color: var(--grpc); background: var(--grpc-soft); }
+
+/* ---------- process ---------- */
+.steps { display: grid; gap: 0; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; background: var(--panel); }
+.step { display: grid; grid-template-columns: 54px 1fr; gap: 14px; padding: 15px 16px; border-bottom: 1px solid var(--rule-2); }
+.step:last-child { border-bottom: 0; }
+.step .idx { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--ink-3); padding-top: 2px; }
+.step h4 { margin: 0 0 3px; font-size: 15px; font-weight: 600; }
+.step p { font-size: 13.5px; }
+.step .produces { display: block; margin-top: 7px; font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: var(--ink-3); }
+
+/* ---------- footer ---------- */
+footer { padding: 40px 0 0; display: grid; gap: 14px; }
+footer p { font-size: 13.5px; }
+
+a { color: var(--chrome); }
+:focus-visible { outline: 2px solid var(--chrome); outline-offset: 2px; border-radius: 3px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="eyebrow">Field guide · REST · GraphQL · gRPC</div>
+    <h1>API Design Field Guide</h1>
+    <p class="thesis">An API is a promise about behaviour across a boundary. Everything that follows —
+      the URL shapes, the status codes, the schema files, the arguments about protocols — is
+      bookkeeping on that one idea. This is the reference companion to the hands-on course;
+      the numbers in it were measured, not quoted.</p>
+    <div class="masthead-meta">
+      <span>9 sections</span>
+      <span>3 protocols, 1 dataset</span>
+      <span>benchmarks measured locally</span>
+    </div>
+  </header>
+
+  <div class="columns">
+    <nav class="toc" aria-label="Contents">
+      <a href="#s1">01 · The promise</a>
+      <a href="#s2">02 · In architecture</a>
+      <a href="#s3">03 · Principles</a>
+      <a href="#s4">04 · Protocols</a>
+      <a href="#s5">05 · Three styles</a>
+      <a href="#s6">06 · Measured</a>
+      <a href="#s7">07 · Choosing</a>
+      <a href="#s8">08 · Process</a>
+      <a href="#s9">09 · Evolving</a>
+    </nav>
+
+    <main>
+
+      <!-- 1 -->
+      <section id="s1">
+        <h2><span class="num">01</span> What an API actually is</h2>
+        <p class="lead">One side agrees to accept certain messages and answer in a certain shape.
+          The other agrees to ask only in that vocabulary. Everything past the promise — language,
+          database, deploy schedule — stays private and swappable. That ignorance is the product.</p>
+
+        <div class="contract">
+          <div class="box">
+            <h4>Client</h4>
+            <p>Web app, mobile app, another service.</p>
+            <div class="foot">knows the contract, nothing else</div>
+          </div>
+          <div class="link"><span>request</span></div>
+          <div class="box center">
+            <h4>The contract</h4>
+            <p>URL &middot; method &middot; payload shape &middot; status codes &middot; error format &middot; limits &middot; versioning</p>
+            <div class="foot">the only thing both sides depend on</div>
+          </div>
+          <div class="link"><span>response</span></div>
+          <div class="box">
+            <h4>Implementation</h4>
+            <p>Business logic, database, caches, other services.</p>
+            <div class="foot">free to change while the promise holds</div>
+          </div>
+        </div>
+
+        <h3>What is inside the promise — beyond the endpoint list</h3>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Part</th><th>Example</th><th>Break it and…</th></tr></thead>
+            <tbody>
+              <tr><td>Address</td><td><code>/v1/artists/{id}</code></td><td>every client 404s</td></tr>
+              <tr><td>Method semantics</td><td><code>GET</code> is safe and repeatable</td><td>a proxy caches a write; a retry duplicates a charge</td></tr>
+              <tr><td>Payload shape</td><td><code>{ "id": "a1", "name": "…" }</code></td><td>clients crash on the missing field</td></tr>
+              <tr><td>Status vocabulary</td><td><code>404</code> gone, <code>422</code> your input is wrong</td><td>clients cannot tell "retry" from "give up"</td></tr>
+              <tr><td>Error format</td><td>one shape for every failure</td><td>every integration writes bespoke parsing</td></tr>
+              <tr><td>Timing</td><td>answers in under 200&nbsp;ms</td><td>someone's page-load budget quietly blows</td></tr>
+              <tr><td>Change policy</td><td>additive only, 6-month deprecations</td><td>trust ends, then the integration does</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Anything a consumer can observe and depend on is part of your API, whether you meant it
+          or not — including the list ordering you never promised and somebody is relying on right now.</p>
+      </section>
+
+      <!-- 2 -->
+      <section id="s2">
+        <h2><span class="num">02</span> Where APIs sit in a system</h2>
+        <p>Architecture is the question <em>where do we cut?</em> An API is a cut you committed to.
+          Draw any system: the arrows crossing boxes are its APIs, and the boxes are independent only
+          to the degree those arrows are well designed.</p>
+
+        <pre>  Web app          Mobile app         Partner systems
+     └────────────────┬───────────────────┘
+                      ▼
+   ┌──────────────────────────────────────────┐
+   │  API gateway / edge                      │  auth · rate limits · TLS
+   │                                          │  routing · versioning · logs
+   └──────────────────────────────────────────┘
+        │                │                │
+   ┌────▼─────┐   ┌──────▼─────┐   ┌──────▼────┐
+   │ Catalog  │◀─▶│ Playback   │◀─▶│ Billing   │
+   │ REST     │   │ gRPC       │   │ gRPC      │
+   └────┬─────┘   └──────┬─────┘   └──────┬────┘
+        ▼                ▼                ▼
+    Postgres        event stream      Stripe API
+                                (someone else's contract)</pre>
+
+        <p>The protocol changes at the edge, and that is not fashion: each side is optimising for a
+          different consumer. Cross-cutting concerns — auth, quotas, TLS, logging — belong in one place,
+          or you will ship eight subtly different implementations and one incident.</p>
+
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th></th><th>Public</th><th>Partner</th><th>Internal</th></tr></thead>
+            <tbody>
+              <tr><td>Consumer</td><td>strangers</td><td>named organisations</td><td>your own teams</td></tr>
+              <tr><td>Cost of a breaking change</td><td>permanent — you cannot call them</td><td>contractual, sometimes legal</td><td>one coordinated deploy</td></tr>
+              <tr><td>Versioning</td><td>strict, long deprecations</td><td>negotiated, with dates</td><td>often none needed</td></tr>
+              <tr><td>Typical protocol</td><td>REST + webhooks</td><td>REST + webhooks</td><td>gRPC or events</td></tr>
+              <tr><td>Optimise for</td><td>clarity and stability</td><td>predictability</td><td>latency and type safety</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The most common architecture mistake is applying internal rules to a public API, or public
+          rules to an internal one.</p>
+      </section>
+
+      <!-- 3 -->
+      <section id="s3">
+        <h2><span class="num">03</span> The principles that survive protocol choice</h2>
+        <p>These hold for REST, GraphQL and gRPC alike. The protocol changes <em>how</em> you honour
+          them, never whether you should.</p>
+
+        <div class="grid">
+          <div class="cell"><h3>Design for the job, not the schema</h3><p>If you cannot rename a database column without a client noticing, you published your schema, not an API.</p></div>
+          <div class="cell"><h3>Consistency beats cleverness</h3><p>One casing, one date format, one money representation, one error shape. A developer should be able to guess the next endpoint.</p></div>
+          <div class="cell"><h3>Names are the interface</h3><p>You will rewrite the implementation three times and the vocabulary never. Use the words the business already says out loud.</p></div>
+          <div class="cell"><h3>Keep the surface small</h3><p>Every field is a lifetime commitment: documented, tested, secured, migrated. Adding one later is trivial; removing one is not.</p></div>
+          <div class="cell"><h3>Errors are a feature</h3><p>Right status, one body shape, actionable detail, a retry signal, and no stack traces. Integrators handle errors more than anything else you ship.</p></div>
+          <div class="cell"><h3>Assume every request arrives twice</h3><p>Safe methods change nothing; unsafe ones take an idempotency key and return the first result on a retry.</p></div>
+          <div class="cell"><h3>Paginate and cap from day one</h3><p>Retrofitting pagination is a breaking change. Cursors over offsets; cap the page size server-side whatever the client asks for.</p></div>
+          <div class="cell"><h3>Evolve additively</h3><p>Add fields freely. Removing, renaming, retyping or making something required is a new version and a deprecation plan.</p></div>
+          <div class="cell"><h3>Authorise per object</h3><p>Authentication says who; authorisation says whether they may touch <em>this</em> record. The classic breach is a valid login plus an unchecked id.</p></div>
+          <div class="cell"><h3>Docs are part of the product</h3><p>A machine-readable spec, a quickstart that works when pasted, an error catalogue, limits, and a changelog.</p></div>
+        </div>
+
+        <h3>The same failure, twice</h3>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Principle</th><th>Designed</th><th>Improvised</th></tr></thead>
+            <tbody>
+              <tr><td>Addressing</td><td><code>GET /v1/artists/a1</code></td><td><code>GET /getArtistData?id=a1</code></td></tr>
+              <tr><td>Failure</td><td><code>404</code> + <code>application/problem+json</code></td><td><code>200 OK</code> with <code>{"status":"error"}</code></td></tr>
+              <tr><td>Payload</td><td><code>?fields=id,name</code> when you want less</td><td>every field, every time, forever</td></tr>
+              <tr><td>Caching</td><td><code>ETag</code> + <code>Cache-Control</code> → <code>304</code></td><td>none; every call pays full price</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The right-hand column is not merely ugly. Every proxy, retry layer, dashboard and alert in
+          the world believes that <code>200</code> succeeded.</p>
+      </section>
+
+      <!-- 4 -->
+      <section id="s4">
+        <h2><span class="num">04</span> How the protocol shapes the design</h2>
+        <p class="lead">Your protocol is not a delivery detail chosen after the design. It decides
+          which ideas are cheap, which are expensive, and which are impossible.</p>
+
+        <h3>What HTTP gives you free — if your design lets it</h3>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Feature</th><th>Unlocked by</th><th>Lost when…</th></tr></thead>
+            <tbody>
+              <tr><td>Methods</td><td>verb in the method, noun in the URL</td><td>everything is <code>POST /graphql</code></td></tr>
+              <tr><td>Status codes</td><td>outcome in the status line</td><td>you return <code>200</code> with an error body</td></tr>
+              <tr><td>Caching, <code>304</code></td><td>each thing has a stable URL</td><td>one URL serves every possible response</td></tr>
+              <tr><td>Content negotiation</td><td>resource separate from representation</td><td>the format is baked into the path</td></tr>
+              <tr><td>Proxies, CDNs, curl</td><td>speaking plain HTTP</td><td>you invent a framing on top</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>The version that created two design styles</h3>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Protocol</th><th>Concurrency</th><th>What it made cheap</th><th>Design pressure</th></tr></thead>
+            <tbody>
+              <tr><td>HTTP/1.1</td><td>one request at a time per connection</td><td>simplicity, debuggability</td><td>round trips are scarce → compound documents, <code>?expand=</code>, eventually GraphQL</td></tr>
+              <tr><td>HTTP/2</td><td>multiplexed streams, compressed headers</td><td>many small calls, long-lived streams</td><td>fine-grained resources become affordable; gRPC requires it</td></tr>
+              <tr><td>HTTP/3</td><td>QUIC over UDP, no TCP head-of-line blocking</td><td>lossy networks, faster handshakes</td><td>mostly free performance, same design</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Serialisation is a design decision too</h3>
+        <p>JSON is self-describing, debuggable with your eyes, and verbose. Protobuf puts field
+          <em>numbers</em> on the wire, not names: typically 30–70&nbsp;% smaller, parsed as a memory
+          copy rather than a string scan — and unreadable without the <code>.proto</code>. Legibility
+          is a real feature; it is just not always the most valuable one.</p>
+      </section>
+
+      <!-- 5 -->
+      <section id="s5">
+        <h2><span class="num">05</span> Three styles, one dataset</h2>
+        <p>Same music catalogue — artists → albums → tracks — exposed three ways. Every difference
+          below is a design difference, not a data difference.</p>
+
+        <div class="styles">
+          <article class="style" data-p="rest">
+            <header>
+              <span class="tag"><span class="swatch" style="background: var(--rest)"></span>Resources</span>
+              <h3>REST</h3>
+              <p class="oneline">Things with addresses, manipulated with a fixed set of verbs. The server decides the shape.</p>
+            </header>
+<pre>GET /v1/artists/a1/albums
+
+200 OK
+ETag: "242db43c060dca90"
+Cache-Control: public, max-age=60
+
+{ "data": [ … ],
+  "page": { "next": "…cursor=YTI" } }</pre>
+            <dl>
+              <dt>Buys you</dt><dd>HTTP caching, universal tooling, obvious debugging, strangers can integrate today</dd>
+              <dt>Costs you</dt><dd>round-trip waterfalls; over- and under-fetching; no native streaming</dd>
+              <dt>Use when</dt><dd>public and partner APIs, resource-shaped domains, read-heavy traffic</dd>
+            </dl>
+          </article>
+
+          <article class="style" data-p="gql">
+            <header>
+              <span class="tag"><span class="swatch" style="background: var(--gql)"></span>Query language</span>
+              <h3>GraphQL</h3>
+              <p class="oneline">One endpoint, one type graph. The client declares the response shape, per query.</p>
+            </header>
+<pre>POST /graphql
+
+{ artist(id: "a1") {
+    name
+    albums { title
+             tracks { title seconds } } } }
+
+→ exactly those fields, one round trip</pre>
+            <dl>
+              <dt>Buys you</dt><dd>no over-fetching, one trip per screen, a schema that is also the docs and the types</dd>
+              <dt>Costs you</dt><dd>HTTP caching, status codes, predictable cost — you rebuild all three yourself</dd>
+              <dt>Use when</dt><dd>many client shapes over one graph; a BFF aggregating services</dd>
+            </dl>
+          </article>
+
+          <article class="style" data-p="grpc">
+            <header>
+              <span class="tag"><span class="swatch" style="background: var(--grpc)"></span>Procedures</span>
+              <h3>gRPC</h3>
+              <p class="oneline">Typed function calls compiled from a <code>.proto</code>, binary over HTTP/2.</p>
+            </header>
+<pre>service CatalogService {
+  rpc GetArtist  (GetArtistRequest)
+      returns (Artist);
+  rpc WatchPlays (WatchPlaysRequest)
+      returns (stream PlayEvent);
+}</pre>
+            <dl>
+              <dt>Buys you</dt><dd>compiler-enforced contracts, small fast payloads, four streaming modes, deadlines everywhere</dd>
+              <dt>Costs you</dt><dd>no browser without a gateway, no HTTP caching, codegen in CI, harder debugging</dd>
+              <dt>Use when</dt><dd>service-to-service inside your perimeter, high volume, polyglot teams</dd>
+            </dl>
+          </article>
+        </div>
+      </section>
+
+      <!-- 6 -->
+      <section id="s6">
+        <h2><span class="num">06</span> The same screen, measured</h2>
+        <p>Scenario: render one artist page — the artist, their albums, and every track on every
+          album. Same data, same machine, three contracts.</p>
+
+        <div class="figure">
+          <p class="figtitle">Round trips per screen</p>
+          <p class="figsub">Each one pays the full network latency. On a mobile network that is 80–150&nbsp;ms
+            per call before your server does any work at all.</p>
+          <div class="legend">
+            <span><span class="swatch" style="background: var(--rest)"></span>REST</span>
+            <span><span class="swatch" style="background: var(--gql)"></span>GraphQL</span>
+            <span><span class="swatch" style="background: var(--grpc)"></span>gRPC</span>
+          </div>
+          <div class="bars" id="chartCalls"></div>
+        </div>
+
+        <div class="figure">
+          <p class="figtitle">Bytes over the wire</p>
+          <p class="figsub">gRPC is the actual protobuf frame; the others are JSON payloads. The same
+            gRPC response serialised as JSON would be 523&nbsp;B.</p>
+          <div class="legend">
+            <span><span class="swatch" style="background: var(--rest)"></span>REST</span>
+            <span><span class="swatch" style="background: var(--gql)"></span>GraphQL</span>
+            <span><span class="swatch" style="background: var(--grpc)"></span>gRPC</span>
+          </div>
+          <div class="bars" id="chartBytes"></div>
+        </div>
+
+        <p class="caveat">Read the table twice, because the obvious conclusion is wrong. These numbers
+          come from localhost, where a round trip costs about a millisecond and the byte counts barely
+          matter. On 4G those four REST calls are half a second of latency; on a LAN between two
+          services, the 199 bytes and the absent JSON parse matter more than the trip count. The
+          protocol does not tell you what is fast — your network and your consumer do.</p>
+
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Approach</th><th class="num-cell">Round trips</th><th class="num-cell">Bytes</th><th class="num-cell">Server ms</th><th>Note</th></tr></thead>
+            <tbody>
+              <tr><td>REST (naive)</td><td class="num-cell">4</td><td class="num-cell">2,568</td><td class="num-cell">18.7</td><td>one call per resource — the N+1 waterfall</td></tr>
+              <tr><td>REST (<code>?expand</code>)</td><td class="num-cell">4</td><td class="num-cell">3,106</td><td class="num-cell">3.2</td><td>fewer documents, bigger and less cacheable</td></tr>
+              <tr><td>GraphQL</td><td class="num-cell">1</td><td class="num-cell">795</td><td class="num-cell">3.5</td><td>one trip, exactly the fields the screen renders</td></tr>
+              <tr><td>gRPC</td><td class="num-cell">1</td><td class="num-cell">199</td><td class="num-cell">4.1</td><td>protobuf; 62&nbsp;% smaller than the same JSON</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 7 -->
+      <section id="s7">
+        <h2><span class="num">07</span> Choosing, honestly</h2>
+        <div class="flow">
+          <div class="qnode">Does a browser or a stranger call it directly?</div>
+          <div class="branches">
+            <div class="branch">
+              <span class="edge">yes</span>
+              <div class="qnode">Do different clients need very different slices of one graph?</div>
+              <div class="branches">
+                <div class="branch"><span class="edge">yes</span><div class="verdict gql">GraphQL at the edge</div></div>
+                <div class="branch"><span class="edge">no</span><div class="verdict rest">REST + HTTP caching</div></div>
+              </div>
+            </div>
+            <div class="branch">
+              <span class="edge">no — service to service</span>
+              <div class="qnode">High volume, strict types, or streaming?</div>
+              <div class="branches">
+                <div class="branch"><span class="edge">yes</span><div class="verdict grpc">gRPC</div></div>
+                <div class="branch"><span class="edge">no</span><div class="verdict rest">REST is fine</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p>Most real systems answer all three: gRPC between services, REST or GraphQL at the edge,
+          events for anything that must not block. "Which one" is the wrong question; "which one
+          <em>here</em>" is the right one. And one row of the decision table is not a joke —
+          <strong>an API style your team can debug at 3&nbsp;a.m. beats a better-suited one they cannot.</strong></p>
+      </section>
+
+      <!-- 8 -->
+      <section id="s8">
+        <h2><span class="num">08</span> The design process</h2>
+        <p>The order matters more than the ceremony. Each step is cheap where it sits and brutally
+          expensive one step later.</p>
+        <div class="steps">
+          <div class="step"><div class="idx">01</div><div><h4>Find the jobs, not the tables</h4><p>What is each consumer trying to accomplish, in their words? Note their constraints — slow network, no proxy, cannot ship for six weeks.</p><span class="produces">produces → use cases with the actor named</span></div></div>
+          <div class="step"><div class="idx">02</div><div><h4>Model the domain</h4><p>Nouns, relationships, identity. Opaque IDs, never row numbers. Get the vocabulary right; it outlives every implementation.</p><span class="produces">produces → an entity sketch with cardinality</span></div></div>
+          <div class="step"><div class="idx">03</div><div><h4>Choose the style deliberately</h4><p>REST, GraphQL, gRPC, events. "It is what we know" is a valid reason. An unrecorded one is not.</p><span class="produces">produces → one defensible paragraph</span></div></div>
+          <div class="step"><div class="idx">04</div><div><h4>Design the contract, before the handler</h4><p>OpenAPI, SDL or <code>.proto</code> — including the error shape, pagination, limits and auth. Writing it forces the decisions into the open while they are still free.</p><span class="produces">produces → a spec file, reviewed on its own</span></div></div>
+          <div class="step"><div class="idx">05</div><div><h4>Prototype against the contract</h4><p>Mock it and have a real consumer build a real screen. Every question they ask is a naming failure or a docs gap.</p><span class="produces">produces → a client screen, and a list of edits</span></div></div>
+          <div class="step"><div class="idx">06</div><div><h4>Review it like a publication</h4><p>What happens on retry, on partial failure, on a client three versions old? Can a caller reach another tenant's object by changing an id?</p><span class="produces">produces → a signed-off contract + change policy</span></div></div>
+          <div class="step"><div class="idx">07</div><div><h4>Ship the operational parts too</h4><p>Docs that run, rate limits, per-consumer usage metrics, a changelog. You cannot deprecate what you cannot measure.</p><span class="produces">produces → docs, dashboards, limits, changelog</span></div></div>
+        </div>
+      </section>
+
+      <!-- 9 -->
+      <section id="s9">
+        <h2><span class="num">09</span> Living with it afterwards</h2>
+        <p>Once someone integrates, your contract is a liability you maintain. The classification is
+          the same everywhere; only the remedy differs.</p>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Change</th><th>REST</th><th>GraphQL</th><th>gRPC</th></tr></thead>
+            <tbody>
+              <tr><td>Add a field</td><td>safe</td><td>safe — nobody selects it unasked</td><td>safe — new tag number</td></tr>
+              <tr><td>Rename a field</td><td>breaking → new version</td><td>breaking → add, <code>@deprecated</code>, measure, remove</td><td>free on the wire, breaking for generated code</td></tr>
+              <tr><td>Make optional required</td><td>breaking</td><td>breaking</td><td>breaking in practice — proto3 cannot enforce it</td></tr>
+              <tr><td>Change a field's type</td><td>breaking</td><td>breaking</td><td>breaking <em>and</em> dangerous — add a new tag, reserve the old</td></tr>
+              <tr><td>Remove a field</td><td>breaking</td><td>breaking, but field-usage stats prove who is affected first</td><td>breaking — <code>reserved</code> the tag forever</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The deprecation playbook: announce with a date, measure usage per consumer, contact the top
+          consumers directly, brown-out near the date so quiet clients notice while it is still
+          recoverable, then remove with an error that names the replacement.</p>
+      </section>
+
+      <footer>
+        <div class="eyebrow">The hands-on half</div>
+        <p>This guide is the reference companion to a runnable course. The labs serve all three APIs
+          over one dataset with a visual front end that shows bytes, round trips and datastore reads
+          per call:</p>
+        <pre>cd "API Design/labs"
+npm install
+npm start        # → http://localhost:4000</pre>
+        <p>Nine lessons in <code>lessons/</code>, exercises with acceptance criteria in
+          <code>exercises/</code>, and fill-in worksheets — an API design canvas, a protocol decision
+          sheet and a review checklist — in <code>worksheets/</code>.</p>
+      </footer>
+
+    </main>
+  </div>
+</div>
+
+<div class="tip" id="tip" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  var DATA = [
+    { label: 'REST (naive)',   protocol: 'rest', calls: 4, bytes: 2568, ms: 18.7, note: 'one call per resource' },
+    { label: 'REST (?expand)', protocol: 'rest', calls: 4, bytes: 3106, ms: 3.2,  note: 'fewer documents, bigger payloads' },
+    { label: 'GraphQL',        protocol: 'gql',  calls: 1, bytes: 795,  ms: 3.5,  note: 'one trip, exact fields' },
+    { label: 'gRPC',           protocol: 'grpc', calls: 1, bytes: 199,  ms: 4.1,  note: 'protobuf frame' }
+  ];
+  var COLOR = { rest: 'var(--rest)', gql: 'var(--gql)', grpc: 'var(--grpc)' };
+  var tip = document.getElementById('tip');
+
+  function fmt(n) { return n.toLocaleString('en-US'); }
+
+  function render(hostId, key, unit) {
+    var host = document.getElementById(hostId);
+    var max = Math.max.apply(null, DATA.map(function (d) { return d[key]; }));
+    host.innerHTML = DATA.map(function (d) {
+      var pct = Math.max((d[key] / max) * 100, 2);
+      return '<div class="barrow" tabindex="0" data-i="' + DATA.indexOf(d) + '">' +
+               '<div class="barlabel">' + d.label + '</div>' +
+               '<div class="bartrack">' +
+                 '<div class="barfill" style="width:' + pct + '%;background:' + COLOR[d.protocol] + '"></div>' +
+                 '<div class="barval">' + fmt(d[key]) + ' ' + unit + '</div>' +
+               '</div>' +
+             '</div>';
+    }).join('');
+  }
+
+  render('chartCalls', 'calls', 'calls');
+  render('chartBytes', 'bytes', 'B');
+
+  function show(el, ev) {
+    var d = DATA[Number(el.dataset.i)];
+    tip.innerHTML = d.label + '<br>' + d.calls + ' round trip' + (d.calls > 1 ? 's' : '') +
+                    ' · ' + fmt(d.bytes) + ' B · ' + d.ms + ' ms<br>' + d.note;
+    var r = el.getBoundingClientRect();
+    tip.style.left = (ev && ev.clientX ? ev.clientX : r.left + r.width / 2) + 'px';
+    tip.style.top = r.top + 'px';
+    tip.style.opacity = '1';
+  }
+  function hide() { tip.style.opacity = '0'; }
+
+  document.querySelectorAll('.bars').forEach(function (host) {
+    host.addEventListener('mousemove', function (e) {
+      var row = e.target.closest('.barrow');
+      if (row) show(row, e); else hide();
+    });
+    host.addEventListener('mouseleave', hide);
+    host.addEventListener('focusin', function (e) {
+      var row = e.target.closest('.barrow');
+      if (row) show(row, null);
+    });
+    host.addEventListener('focusout', hide);
+  });
+})();
+</script>
