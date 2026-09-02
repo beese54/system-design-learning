@@ -20,9 +20,12 @@ not a domain difference.
 |---|---|---|---|---|
 | I | [API Design](./API%20Design/README.md) | Why APIs are shaped the way they are, and how REST, GraphQL and gRPC differ once you send real bytes | `localhost:4000` | Built |
 | II | [Data & Storage](./Data%20&%20Storage/README.md) | What a read actually costs — query plans, indexes, transactions, locks — against a real Postgres holding a million rows | `localhost:4100` | Built |
+| III | [Scaling & Load Balancing](./Scaling%20&%20Load%20Balancing/README.md) | What happens above the database: one process becomes a fleet, a balancer decides where each request goes, and a health check decides which machines still count | `localhost:4300` | Built |
 
-Chapter I's compare benchmark had one column quietly lying: its datastore was a JavaScript
-array, so every read was free. Chapter II opens that box.
+Each chapter opens by naming something the previous one was quietly assuming. Chapter I's compare
+benchmark had a column that lied: its datastore was a JavaScript array, so every read was free.
+Chapter II opened that box — and then assumed there was exactly one application process in front of
+it. Chapter III opens that one.
 
 ## The reader
 
@@ -39,14 +42,16 @@ The markdown lessons in each chapter folder are the master copy. The reader neve
 
 ## Running the labs
 
-Node 20+ for both. Chapter II also needs Docker.
+Node 20+ for all three. Chapters II and III also need Docker.
 
 ```bash
-cd "API Design/labs"   && npm install && npm start     # → http://localhost:4000
-cd "Data & Storage/labs" && docker compose up -d && npm install && npm start   # → http://localhost:4100
+cd "API Design/labs"              && npm install && npm start                    # → :4000
+cd "Data & Storage/labs"          && docker compose up -d && npm install && npm start   # → :4100
+cd "Scaling & Load Balancing/labs" && docker compose up -d db && npm install && npm start  # → :4300
 ```
 
-Different ports on purpose — you can run both at once and compare.
+Different ports on purpose — you can run all three at once and compare. Each lab owns its own
+Compose project, so starting one never disturbs another.
 
 ---
 
@@ -56,6 +61,8 @@ Different ports on purpose — you can run both at once and compare.
 system_design_learning/
 ├── API Design/          Chapter I — lessons, labs, worksheets, exercises
 ├── Data & Storage/      Chapter II — same, plus a containerised Postgres
+├── Scaling & Load Balancing/
+│                        Chapter III — a fleet, a balancer, and health checks you can break
 ├── book/                the reader (build from the lesson markdown)
 ├── docs/architecture.md how it all fits together, and why
 └── tasks/               build plans and verification notes per chapter

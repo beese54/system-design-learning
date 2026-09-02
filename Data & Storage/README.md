@@ -174,6 +174,15 @@ which is not the same as learned.
 
 ## When you finish
 
-The natural third course is **caching and load balancing** — Redis and nginx, and the question this
-course deliberately left open: what if you do not do the read at all? You will be well placed for
-it, because you will finally know what the read you are avoiding actually costs.
+[Course 3 is **Scaling & Load Balancing**](../Scaling%20&%20Load%20Balancing/README.md) — the tier
+above everything you just measured. This course tuned one application process in front of one
+database and never asked what happens when that process is not enough. Course 3 turns it into a
+fleet, puts a load balancer in front that you can read line by line, and breaks health checks on
+purpose to watch a fleet eject itself.
+
+You will be well placed for it, because you now know what a read costs — and the first thing that
+course measures is that scaling out an I/O-bound service does not make it faster, which only makes
+sense once you know where the time was actually going.
+
+After that comes **caching**, and the question this course deliberately left open: what if you do
+not do the read at all?

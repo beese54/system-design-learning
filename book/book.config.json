@@ -17,6 +17,13 @@
       "numeral": "II",
       "blurb": "What a read actually costs. Query plans, indexes, transactions and locks, against a real Postgres holding a million rows.",
       "lab": "http://localhost:4100"
+    },
+    {
+      "dir": "Scaling & Load Balancing",
+      "title": "Scaling & Load Balancing",
+      "numeral": "III",
+      "blurb": "What happens above the database: one process becomes a fleet, a balancer decides where each request goes, and a health check decides which machines still count.",
+      "lab": "http://localhost:4300"
     }
   ]
 }

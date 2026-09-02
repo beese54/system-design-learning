@@ -114,3 +114,108 @@ query plan is readable rather than horizontally scrolled.
 **Not verified:** opening via `file://` directly — the browser tooling cannot navigate to
 file URLs. Confirmed by inspection instead: no module scripts, no fetch, relative paths
 only, storage access wrapped in try/catch.
+
+---
+
+# Course 3 — Scaling & Load Balancing
+
+Status: BUILT AND VERIFIED (2026-09-03). Plan approved by user; folder named
+"Scaling & Load Balancing".
+
+Governing rule (inherited from Courses 1 and 2, Pattern AC): a skill counts as
+learned only when an artifact proves it.
+
+## Decisions locked
+- Topic: the tier above the database — vertical and horizontal scaling, load balancers,
+  health checks. Chosen by the user; caching deferred to Course 4.
+- Continuity: extends the same music catalogue. State tables are `sessions` and
+  `play_queues` rather than a shopping cart, because the shared-domain invariant in
+  docs/architecture.md would otherwise have been broken for the first time.
+- Balancer: hand-rolled Node L7 proxy to learn from, plus nginx as a comparison —
+  behaviour only, never throughput (the container hop makes that dishonest).
+- App tier: host child processes, not containers, as in Courses 1 and 2.
+- Database: Chapter III owns its own Postgres on 55433 with a light seed, so the
+  chapter is self-contained and both courses can run at once.
+
+## Design problem to solve
+A laptop is one box, and a course teaching "run many boxes" on one box will lie unless
+the per-request work is chosen deliberately. Each instance therefore has selectable work
+modes: `cpu` (a calibrated busy-loop) where instance count is causally the variable, and
+`io:query` / `io:scan` / `io:sleep` where it is not. The contrast between them is the
+chapter's instrument.
+
+## Build checklist
+- [x] Scaffold `Scaling & Load Balancing/` (lessons, labs, worksheets, exercises)
+- [x] `labs/docker-compose.yml` — postgres:16 on 55433 + optional nginx profile
+- [x] `labs/db/` — schema, light seed (~50k plays), pool, `lab_ready` readiness gate
+- [x] `labs/fleet/` — instance (5 work modes, 9 faults), supervisor, fault catalogue
+- [x] `labs/lb/` — balancer, 5 policies, ejection state machine, annotated nginx.conf
+- [x] `labs/load/` — driver + worker, budget, calibration, histogram
+- [x] `labs/bench/` — one module per tab
+- [x] `labs/server.js` + `labs/ui/` — 8 tabs
+- [x] Lessons 01-09
+- [x] Worksheets: capacity canvas, balancer decision sheet, health check checklist
+- [x] Exercises + worked solutions (11, with the last as the course artifact)
+- [x] README with the module table, reference numbers and progress boxes
+- [x] Repo wiring: root README, architecture doc, book.config.json, this file
+
+## Done-when (course level)
+- [x] `docker compose up -d db && npm install && npm start` works from cold, no manual steps
+- [x] Every lesson number came from the lab rather than from a textbook
+- [x] The chapter's central claim is measured, and it contradicted the obvious version
+- [x] Every module's proof artifact is checkable by a stranger
+
+## Review
+
+Built as `Scaling & Load Balancing/` — a sibling of the first two courses. 9 lessons,
+8 lab tabs, 3 worksheets, 11 exercises with worked solutions, ~5,000 lines of lab.
+
+**The plan was wrong and the measurement caught it.** The approved plan's centrepiece was
+that `io` mode would show horizontal scaling beating vertical. An adversarial review
+predicted this was false, and the lab confirmed it: with identical total concurrency, four
+instances managed 5,383 rps against a single instance's 7,838 — a ratio of 0.69. One event
+loop was never the constraint for I/O-bound work, so the fleet only added a proxy hop in
+front of work that was already free. Lesson 03 was rewritten around the honest result:
+scaling out buys availability, deployability and blast radius, not throughput. The same
+comparison in `cpu` mode gives 2.46, and that inversion is now the chapter's spine.
+
+**Verified, not assumed:**
+- Cold `docker compose up -d db` + `npm start` on Windows 11, both course databases healthy
+  side by side, Chapter II reseeded to its full 1,000,000 plays.
+- Every endpoint exercised; the UI opened in a real browser and driven through the tabs.
+- Hard-killing the lab host with `Stop-Process -Force` left zero orphaned instances and
+  zero held ports.
+- `node book/build.mjs` reports `III. Scaling & Load Balancing 9 lessons, 12,807 words`,
+  with 10 tables, 21 code blocks and zero dead links.
+
+**Defects found by running it rather than reading it:**
+
+1. **Compose project collision.** Every course keeps its lab in a folder called `labs`, so
+   Compose derived the same project name for all of them, and Chapter III's first start
+   recreated Chapter II's container. Both compose files now set an explicit `name:`.
+2. **`dead` was not dead.** `server.close()` stops new connections but leaves established
+   keep-alive sockets working, so the health checker kept getting healthy replies over the
+   connection it already had and a dead instance was never ejected.
+3. **Broken instances could not be revived.** Revive went over HTTP, which a `dead`
+   instance has no listener for and a `hung` one never answers. Moved to IPC — the control
+   path must not share a failure domain with the thing it is rescuing.
+4. **The fault catalogue started a server.** The Health tab imported `STATES` from
+   `instance.js`, which is a script with side effects, so the lab host quietly started an
+   app instance inside itself and reported it as an orphan. Extracted to `fleet/faults.js`.
+5. **Knee detection reported nonsense.** Taking the single highest rps as the peak let the
+   noisiest sample define the answer, so a visibly flat curve reported its knee at the last
+   concurrency tested. Found by looking at the chart in a browser.
+6. **Two tabs reported impossible numbers.** In-memory sessions said 100% against a theory
+   of 75% (the simulation was not interleaving requests); the zombie tab said 0% because
+   passive health checking ejected the zombie before the policy could misbehave.
+
+**The nginx tab, verified against a live container.** The hop is real and worth the refusal
+to compare throughput: direct to an instance is 0.88 ms p50 through nginx against 0.14 ms
+direct, so the container's virtual network adds 0.74 ms to an endpoint that does nothing.
+The behaviour comparison came out better than expected — under a `dead` fault this lab's
+active probing detected in 1,290 ms and cost zero user requests, while nginx routed away in
+566 ms and cost three failed ones. nginx was faster and users paid for it, which is exactly
+the trade the lesson describes and is far more persuasive as two measured numbers.
+
+**Not done / deferred:** caching is Course 4, and Chapter II's closing paragraph now points
+there via this course.
