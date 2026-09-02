@@ -1,0 +1,82 @@
+# Compose project name, set explicitly.
+#
+# Without this, Compose derives the project from the FOLDER name - which is
+# `labs` for every course in this series. Chapter II lives in
+# `Data & Storage/labs`, so the two courses would share one project, and
+# starting this one would quietly recreate that one's container. It did exactly
+# that once during this chapter's build. The root README promises the courses
+# run side by side; this line is what makes that true.
+name: fleet-lab
+# Two containers, and only one of them is required.
+#
+#   docker compose up -d db              the shared state store (needed)
+#   docker compose --profile nginx up -d nginx   the real load balancer (tab 8 only)
+#   docker compose down                  stop, keep the data
+#   docker compose down -v               stop and delete the volume (re-seeds next up)
+#
+# Everything else in this lab - the app instances, the load balancer you can
+# read, the load generator - runs on your host with `npm start`, exactly as in
+# Courses 1 and 2. Only the two things that are genuinely annoying to install
+# are containerised.
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: fleet-lab-db
+    environment:
+      POSTGRES_USER: lab
+      POSTGRES_PASSWORD: lab
+      POSTGRES_DB: fleet
+      POSTGRES_INITDB_ARGS: "--locale=C --encoding=UTF8"
+    ports:
+      # 55433, one above the Data & Storage lab's 55432, so both courses can
+      # run at the same time and you can compare them.
+      - "127.0.0.1:55433:5432"
+    volumes:
+      - fleet-data:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    command:
+      # This course is not about tuning Postgres - Course 2 was. The database
+      # here is a shared state store and a source of honest I/O wait, so the
+      # settings are ordinary on purpose.
+      - "postgres"
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      # A fleet of 16 instances with a small pool each still has to fit.
+      - "max_connections=200"
+      - "-c"
+      - "log_min_duration_statement=200"
+    healthcheck:
+      # `pg_isready` goes true long before the seed finishes, and so does any
+      # query against a table the schema created - it exists, it is just empty.
+      # `lab_ready` is written by the very last statement of the seed, so its
+      # existence is the only honest "ready" signal. Course 2 shipped this bug
+      # before it shipped the fix; Lesson 05 of this course is about exactly
+      # that class of mistake, so it would be embarrassing to repeat it here.
+      test: ["CMD-SHELL", "pg_isready -U lab -d fleet && psql -U lab -d fleet -c 'select 1 from lab_ready' >/dev/null 2>&1"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+    restart: unless-stopped
+
+  nginx:
+    # Tab 8 only. Started by `npm run nginx:up`, never by default, because the
+    # whole point of the chapter is the balancer you can read - nginx is the
+    # control you check your own work against.
+    image: nginx:1.27-alpine
+    container_name: fleet-lab-nginx
+    profiles: ["nginx"]
+    ports:
+      - "127.0.0.1:4320:4320"
+    volumes:
+      - ./lb/nginx.conf:/etc/nginx/nginx.conf:ro
+    extra_hosts:
+      # The app instances run on the HOST, not in this network. Docker Desktop
+      # (Windows, macOS) provides host.docker.internal already; this line is
+      # what makes the same compose file work on Linux, where it does not exist.
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+volumes:
+  fleet-data:

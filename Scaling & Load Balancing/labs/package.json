@@ -1,0 +1,23 @@
+{
+  "name": "scaling-load-balancing-labs",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Runnable labs for the Scaling & Load Balancing course: a fleet of app instances behind a load balancer you can read, with health checks you can break.",
+  "scripts": {
+    "start": "node server.js",
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down",
+    "db:reset": "docker compose down -v && docker compose up -d db",
+    "db:psql": "docker compose exec db psql -U lab -d fleet",
+    "db:wait": "node db/wait.js",
+    "nginx:up": "docker compose --profile nginx up -d nginx",
+    "nginx:down": "docker compose --profile nginx down",
+    "nginx:reload": "docker compose --profile nginx exec nginx nginx -s reload",
+    "check": "node --check server.js && node --check fleet/instance.js && node --check lb/balancer.js"
+  },
+  "dependencies": {
+    "pg": "^8.13.0"
+  },
+  "engines": { "node": ">=20" }
+}
